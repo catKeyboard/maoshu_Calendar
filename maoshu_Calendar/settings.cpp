@@ -5,6 +5,7 @@
 // 运行期配置：NVS namespace "cfg"，网页可修改，掉电保留
 static Preferences cfgPrefs;
 static String wLat, wLon, wCity, bUid, bTopic;
+static int pFocus, pShort, pLong, pCycle;
 
 void settingsBegin(){
   cfgPrefs.begin("cfg", true);
@@ -13,6 +14,10 @@ void settingsBegin(){
   wCity = cfgPrefs.getString("city", WEATHER_CITY);
   bUid  = cfgPrefs.getString("uid", BEMFA_UID);
   bTopic = cfgPrefs.getString("topic", BEMFA_TOPIC);
+  pFocus = cfgPrefs.getInt("pFocus", POMO_FOCUS_MIN);
+  pShort = cfgPrefs.getInt("pShort", POMO_SHORT_MIN);
+  pLong  = cfgPrefs.getInt("pLong", POMO_LONG_MIN);
+  pCycle = cfgPrefs.getInt("pCycle", POMO_CYCLE);
   cfgPrefs.end();
   // 开源固件里的占位符视为"未配置"
   if(bUid == "youUID") bUid = "";
@@ -44,5 +49,25 @@ void settingsSetBemfa(const String& uid, const String& topic){
   cfgPrefs.begin("cfg", false);
   cfgPrefs.putString("uid", bUid);
   cfgPrefs.putString("topic", bTopic);
+  cfgPrefs.end();
+}
+
+int cfgPomoFocus(){ return pFocus; }
+int cfgPomoShort(){ return pShort; }
+int cfgPomoLong(){ return pLong; }
+int cfgPomoCycle(){ return pCycle; }
+
+void settingsSetPomo(int focus, int shortMin, int longMin, int cycle){
+  // 时长限制 1~120 分钟，循环数 1~12
+  auto clamp = [](int v, int lo, int hi){ return v < lo ? lo : (v > hi ? hi : v); };
+  pFocus = clamp(focus, 1, 120);
+  pShort = clamp(shortMin, 1, 60);
+  pLong  = clamp(longMin, 1, 60);
+  pCycle = clamp(cycle, 1, 12);
+  cfgPrefs.begin("cfg", false);
+  cfgPrefs.putInt("pFocus", pFocus);
+  cfgPrefs.putInt("pShort", pShort);
+  cfgPrefs.putInt("pLong", pLong);
+  cfgPrefs.putInt("pCycle", pCycle);
   cfgPrefs.end();
 }

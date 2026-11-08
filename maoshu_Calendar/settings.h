@@ -16,4 +16,10 @@ String cfgBemfaUid();                   // 巴法云私钥UID
 String cfgBemfaTopic();                 // 巴法云主题名
 void   settingsSetBemfa(const String& uid, const String& topic);
 
+int  cfgPomoFocus();                    // 番茄钟专注时长(分钟)
+int  cfgPomoShort();                    // 短休息(分钟)
+int  cfgPomoLong();                     // 长休息(分钟)
+int  cfgPomoCycle();                    // 每几个专注进入长休息
+void settingsSetPomo(int focus, int shortMin, int longMin, int cycle);
+
 #endif

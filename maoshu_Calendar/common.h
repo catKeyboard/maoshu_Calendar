@@ -28,8 +28,14 @@
 #define AP_SSID "maoshu_Calendar"
 #define AP_PASS "12345678"
 
+// ===== 番茄钟默认时长(分钟，网页可改并存NVS) =====
+#define POMO_FOCUS_MIN 25   // 专注
+#define POMO_SHORT_MIN 5    // 短休息
+#define POMO_LONG_MIN  15   // 长休息
+#define POMO_CYCLE     4    // 每完成几个专注进入长休息
+
 // ===== 页面枚举 =====
-enum CurrentPage { PAGE_CAL, PAGE_MEMO };
+enum CurrentPage { PAGE_CAL, PAGE_MEMO, PAGE_POMO };
 extern enum CurrentPage currentPage;
 
 #endif

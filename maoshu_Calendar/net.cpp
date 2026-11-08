@@ -7,6 +7,7 @@
 #include "memo.h"
 #include "settings.h"
 #include "weather.h"
+#include "pomodoro.h"
 #include "net.h"
 
 // 网络：WiFi连接 + 精简AP配网 + NTP校时
@@ -69,6 +70,20 @@ a{color:#1E90FF;font-size:.9rem}
 <button type='submit'>保存地区</button>
 </form>
 <div class='tip'>选择省市会自动填好经纬度，也可直接手填(保留两位小数)</div>
+
+<h3>番茄钟</h3>
+<div class='tip'>单位分钟；保存后设备端按新时长重置当前阶段</div>
+<form action='/pomo' method='post'>
+<div class='row'>
+<input id='pFocus' name='pFocus' type='number' min='1' max='120' placeholder='专注分钟'>
+<input id='pShort' name='pShort' type='number' min='1' max='60' placeholder='短休分钟'>
+</div>
+<div class='row'>
+<input id='pLong' name='pLong' type='number' min='1' max='60' placeholder='长休分钟'>
+<input id='pCycle' name='pCycle' type='number' min='1' max='12' placeholder='几个专注进长休'>
+</div>
+<button type='submit'>保存番茄钟设置</button>
+</form>
 
 <h3>巴法云推送</h3>
 <div class='tip'>UID=巴法云控制台32位私钥，主题名与小程序的发送主题一致</div>
@@ -141,6 +156,10 @@ fetch('/status').then(function(r){return r.json()}).then(function(s){
   document.getElementById('uid').value=s.uid;
   document.getElementById('topic').value=s.topic;
   document.getElementById('bcur').textContent=s.uid?'已配置，设备会自动重连巴法云':'尚未配置';
+  document.getElementById('pFocus').value=s.pFocus;
+  document.getElementById('pShort').value=s.pShort;
+  document.getElementById('pLong').value=s.pLong;
+  document.getElementById('pCycle').value=s.pCycle;
 }).catch(function(){});
 
 function loadScan(){
@@ -205,7 +224,9 @@ static void handleStatus(){
   s += ",\"ip\":\"" + (online ? WiFi.localIP().toString() : String("")) + "\"";
   s += ",\"city\":\"" + jsonEsc(cfgWeatherCity()) + "\"";
   s += ",\"lat\":\"" + cfgWeatherLat() + "\",\"lon\":\"" + cfgWeatherLon() + "\"";
-  s += ",\"uid\":\"" + jsonEsc(cfgBemfaUid()) + "\",\"topic\":\"" + jsonEsc(cfgBemfaTopic()) + "\"}";
+  s += ",\"uid\":\"" + jsonEsc(cfgBemfaUid()) + "\",\"topic\":\"" + jsonEsc(cfgBemfaTopic()) + "\"";
+  s += ",\"pFocus\":" + String(cfgPomoFocus()) + ",\"pShort\":" + String(cfgPomoShort());
+  s += ",\"pLong\":" + String(cfgPomoLong()) + ",\"pCycle\":" + String(cfgPomoCycle()) + "}";
   server->send(200, "application/json", s);
 }
 
@@ -247,6 +268,23 @@ static void handleBemfa(){
     "<br><a href='/'>返回</a>");
 }
 
+// 保存番茄钟时长(分钟)并重置当前阶段
+static void handlePomo(){
+  int focus = server->arg("pFocus").toInt();
+  int shortMin = server->arg("pShort").toInt();
+  int longMin = server->arg("pLong").toInt();
+  int cycle = server->arg("pCycle").toInt();
+  if(focus < 1 || shortMin < 1 || longMin < 1 || cycle < 1){
+    server->send(200, "text/html", "<meta charset='utf-8'>请填写大于0的数值<br><a href='/'>返回</a>");
+    return;
+  }
+  settingsSetPomo(focus, shortMin, longMin, cycle);
+  pomoApplyConfig();
+  Serial.println("番茄钟设置: 专注" + String(focus) + " 短休" + String(shortMin) +
+                 " 长休" + String(longMin) + " 每" + String(cycle) + "个进长休");
+  server->send(200, "text/html", "<meta charset='utf-8'>番茄钟设置已保存<br><a href='/'>返回</a>");
+}
+
 // 保存新凭证并重启
 static void handleSave(){
   String ssid = server->arg("ssid");
@@ -270,6 +308,7 @@ static void registerRoutes(){
   server->on("/status", handleStatus);
   server->on("/save", HTTP_POST, handleSave);
   server->on("/weather", HTTP_POST, handleWeather);
+  server->on("/pomo", HTTP_POST, handlePomo);
   server->on("/bemfa", HTTP_POST, handleBemfa);
 }
 
