@@ -5,10 +5,13 @@
  *   - 日历主页：公历月历 + 农历/干支/节日(NTP校时，断网不丢农历)
  *   - 备忘录页：巴法云推送，NVS保存，断电不丢
  *   - 番茄钟页：专注/短休/长休自动循环，时长网页可配
+ *   - 壁纸页：日/夜壁纸随主题切换，单击换套、双击启停
  * 交互(单按键)：
- *   - 日历页 单击 → 备忘录页；备忘录页 单击翻页；番茄页 单击开始/暂停
+ *   - 日历页 单击 → 备忘录页；双击 → 壁纸页
+ *   - 备忘录页 单击翻页；番茄页 单击开始/暂停
  *   - 备忘录页 双击回日历 / 长按3秒清空
  *   - 番茄页 双击重置当前阶段 / 长按回日历
+ *   - 壁纸页 单击换下一套 / 双击启用停用 / 长按回日历
  *   - 收到新备忘录自动跳到备忘录页
  */
 #include <WiFi.h>
@@ -22,13 +25,14 @@
 #include "weather.h"
 #include "settings.h"
 #include "pomodoro.h"
+#include "wallpaper.h"
 
 // 页面状态
 enum CurrentPage currentPage = PAGE_CAL;
 static OneButton button(BUTTON, true);
 static int lastMin = -1;
 
-// 单击：日历→备忘录；备忘录翻页(末页再单击进番茄)；番茄开始/暂停
+// 单击：日历→备忘录；备忘录翻页(末页再单击进番茄)；番茄开始/暂停；壁纸换套
 static void onClick(){
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_MEMO;
@@ -40,24 +44,36 @@ static void onClick(){
     } else {
       memoNextPage();
     }
+  } else if(currentPage == PAGE_WALL){
+    wallpaperNextSet();
+    drawWallPage();
   } else {
     pomoClick();
   }
 }
-// 双击：备忘录→日历；番茄→重置当前阶段
+// 双击：日历→壁纸；备忘录→日历；番茄→重置当前阶段；壁纸→启用/停用
 static void onDoubleClick(){
-  if(currentPage == PAGE_MEMO){
+  if(currentPage == PAGE_CAL){
+    currentPage = PAGE_WALL;
+    drawWallPage();
+  } else if(currentPage == PAGE_MEMO){
     currentPage = PAGE_CAL;
     drawCalPage();
-  } else if(currentPage == PAGE_POMO){
+  } else if(currentPage == PAGE_WALL){
+    wallpaperToggle();
+    drawWallPage();
+  } else {
     pomoReset();
   }
 }
-// 长按3秒：备忘录清空全部；番茄回日历
+// 长按3秒：备忘录清空全部；番茄/壁纸回日历
 static void onLongPress(){
   if(currentPage == PAGE_MEMO){
     memoClearAll();
   } else if(currentPage == PAGE_POMO){
+    currentPage = PAGE_CAL;
+    drawCalPage();
+  } else if(currentPage == PAGE_WALL){
     currentPage = PAGE_CAL;
     drawCalPage();
   }
@@ -68,7 +84,8 @@ void setup(){
   tftInit();
   Serial.println(String("maoshu_Calendar ") + FW_VERSION + " 启动");
   calInit();
-  settingsBegin(); // 读取NVS中的天气地区/巴法云/番茄钟配置
+  settingsBegin(); // 读取NVS中的天气地区/巴法云/番茄钟/壁纸配置
+  wallpaperBegin(); // 壁纸开关与套编号
   netBegin();    // WiFi/NTP(无凭证或失败进入配网模式)
   memoBegin();   // 备忘录 NVS + 巴法云连接
   weatherBegin(); // 一周天气(Open-Meteo)
@@ -93,7 +110,8 @@ void loop(){
     if(themeTick()){
       if(currentPage == PAGE_CAL) drawCalPage();
       else if(currentPage == PAGE_MEMO) drawMemoPage();
-      else drawPomoPage();
+      else if(currentPage == PAGE_POMO) drawPomoPage();
+      else drawWallPage();
     }
   }
   if(currentPage == PAGE_MEMO) memoLoop();

@@ -6,6 +6,8 @@
 static Preferences cfgPrefs;
 static String wLat, wLon, wCity, bUid, bTopic;
 static int pFocus, pShort, pLong, pCycle;
+static bool wallOn;
+static int wallSet;
 
 void settingsBegin(){
   cfgPrefs.begin("cfg", true);
@@ -18,6 +20,8 @@ void settingsBegin(){
   pShort = cfgPrefs.getInt("pShort", POMO_SHORT_MIN);
   pLong  = cfgPrefs.getInt("pLong", POMO_LONG_MIN);
   pCycle = cfgPrefs.getInt("pCycle", POMO_CYCLE);
+  wallOn = cfgPrefs.getBool("wpOn", false);
+  wallSet = cfgPrefs.getInt("wpSet", 0);
   cfgPrefs.end();
   // 开源固件里的占位符视为"未配置"
   if(bUid == "youUID") bUid = "";
@@ -69,5 +73,17 @@ void settingsSetPomo(int focus, int shortMin, int longMin, int cycle){
   cfgPrefs.putInt("pShort", pShort);
   cfgPrefs.putInt("pLong", pLong);
   cfgPrefs.putInt("pCycle", pCycle);
+  cfgPrefs.end();
+}
+
+bool cfgWallOn(){ return wallOn; }
+int  cfgWallSet(){ return wallSet; }
+
+void settingsSetWall(bool on, int set){
+  wallOn = on;
+  wallSet = set < 0 ? 0 : set;
+  cfgPrefs.begin("cfg", false);
+  cfgPrefs.putBool("wpOn", wallOn);
+  cfgPrefs.putInt("wpSet", wallSet);
   cfgPrefs.end();
 }

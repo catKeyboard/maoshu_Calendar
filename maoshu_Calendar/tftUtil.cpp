@@ -89,3 +89,7 @@ bool themeTick(){
   }
   return false;
 }
+
+bool themeIsDay(){
+  return appliedDay;
+}

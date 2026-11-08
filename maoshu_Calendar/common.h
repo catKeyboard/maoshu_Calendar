@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // ===== 固件版本 =====
-#define FW_VERSION "V01.1"
+#define FW_VERSION "V01.2"
 
 // ===== 硬件 =====
 #define BUTTON 8   // 按键引脚(与原 DuduClock 相同)
@@ -38,7 +38,7 @@
 #define POMO_CYCLE     4    // 每完成几个专注进入长休息
 
 // ===== 页面枚举 =====
-enum CurrentPage { PAGE_CAL, PAGE_MEMO, PAGE_POMO };
+enum CurrentPage { PAGE_CAL, PAGE_MEMO, PAGE_POMO, PAGE_WALL };
 extern enum CurrentPage currentPage;
 
 #endif

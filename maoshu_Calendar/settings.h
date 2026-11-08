@@ -22,4 +22,8 @@ int  cfgPomoLong();                     // 长休息(分钟)
 int  cfgPomoCycle();                    // 每几个专注进入长休息
 void settingsSetPomo(int focus, int shortMin, int longMin, int cycle);
 
+bool cfgWallOn();                       // 日历页壁纸是否启用
+int  cfgWallSet();                      // 当前壁纸套编号(0起)
+void settingsSetWall(bool on, int set); // 保存壁纸开关与套编号
+
 #endif

@@ -27,5 +27,7 @@ void tftInit();
 void reflashTFT();
 // 按时段套用主题(7:00-19:00日间)，主题发生变化时返回true
 bool themeTick();
+// 当前是否处于日间主题(壁纸按此选日间/夜间图)
+bool themeIsDay();
 
 #endif
