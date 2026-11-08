@@ -225,7 +225,7 @@ void drawCalPage(){
   clk.setColorDepth(16);
   clk.createSprite(320, 240);
   clk.fillSprite(backFillColor);
-  if(wallpaperOn()) wallpaperDrawBg(clk);   // 壁纸背景(未启用时为纯色底)
+  if(wallpaperOn()) wallpaperDrawBg(clk, true);   // 壁纸背景(带主题蒙层，保证文字可读)
   if(now < 100000){  // NTP尚未同步
     drawMemoString(clk, 112, 100, "等待时间同步", waitColor);
     drawMemoString(clk, 12, 150, netDiag(), cyanColor);

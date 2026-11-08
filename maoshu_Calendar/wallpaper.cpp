@@ -30,13 +30,32 @@ static const uint16_t* currentImage(){
                       : (const uint16_t*)wallpaperNight[i];
 }
 
-void wallpaperDrawBg(TFT_eSprite &s){
-  // sprite 内部按字节交换格式存储颜色(与fillRect等绘图一致)，
-  // 直接 pushImage 会少一次交换导致红蓝错位，这里临时开启交换
-  bool oldSwap = s.getSwapBytes();
-  s.setSwapBytes(true);
-  s.pushImage(0, 0, WALLPAPER_W, WALLPAPER_H, currentImage());
-  s.setSwapBytes(oldSwap);
+// 主题蒙层强度：把壁纸像素向主题底色混合，保证日历文字可读
+#define WP_SCRIM_DAY    150   // 日间：向浅色底混合(0~255，越大越淡)
+#define WP_SCRIM_NIGHT  135   // 夜间：向深色底混合(越大越暗)
+
+// 两色按 a/255 比例向 bg 混合
+static inline uint16_t blend565(uint16_t c, uint16_t bg, uint16_t a){
+  uint16_t ia = 255 - a;
+  uint16_t r = ((((c >> 11) & 0x1F) * ia) + (((bg >> 11) & 0x1F) * a)) / 255;
+  uint16_t g = ((((c >>  5) & 0x3F) * ia) + (((bg >>  5) & 0x3F) * a)) / 255;
+  uint16_t b = ((((c      ) & 0x1F) * ia) + (((bg      ) & 0x1F) * a)) / 255;
+  return (uint16_t)((r << 11) | (g << 5) | b);
+}
+
+void wallpaperDrawBg(TFT_eSprite &s, bool scrim){
+  const uint16_t *src = currentImage();
+  uint16_t *dst = (uint16_t*)s.getPointer();
+  if(dst == nullptr) return;
+  int n = WALLPAPER_W * WALLPAPER_H;
+  uint16_t a = scrim ? (themeIsDay() ? WP_SCRIM_DAY : WP_SCRIM_NIGHT) : 0;
+  uint16_t bg = backFillColor;
+  for(int i = 0; i < n; i++){
+    uint16_t c = pgm_read_word(&src[i]);
+    if(a) c = blend565(c, bg, a);
+    // sprite 内部为字节交换格式存储(与fillRect等绘图一致)
+    dst[i] = (uint16_t)((c >> 8) | (c << 8));
+  }
 }
 
 void wallpaperNextSet(){
@@ -55,7 +74,7 @@ bool wallpaperToggle(){
 void drawWallPage(){
   clk.setColorDepth(16);
   clk.createSprite(320, 240);
-  wallpaperDrawBg(clk);
+  wallpaperDrawBg(clk, false);   // 预览显示原图
   // 顶栏与底部用主题底色遮住图片，保证文字清晰
   clk.fillRect(0, 0, 320, 28, backFillColor);
   clk.fillRect(0, 196, 320, 44, backFillColor);

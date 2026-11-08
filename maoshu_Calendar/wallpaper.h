@@ -12,7 +12,7 @@ int  wallpaperSetIndex();              // 当前套编号(0起)
 int  wallpaperSetCount();              // 固件内置套数
 void wallpaperNextSet();               // 切到下一套(存NVS)
 bool wallpaperToggle();                // 启用/停用(存NVS)，返回新状态
-void wallpaperDrawBg(TFT_eSprite &s);  // 把当前壁纸铺到sprite(0,0)
+void wallpaperDrawBg(TFT_eSprite &s, bool scrim);  // 把当前壁纸铺到sprite(0,0)，scrim=叠加主题蒙层
 void drawWallPage();                   // 壁纸页整页绘制
 
 #endif
