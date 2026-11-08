@@ -31,7 +31,12 @@ static const uint16_t* currentImage(){
 }
 
 void wallpaperDrawBg(TFT_eSprite &s){
+  // sprite 内部按字节交换格式存储颜色(与fillRect等绘图一致)，
+  // 直接 pushImage 会少一次交换导致红蓝错位，这里临时开启交换
+  bool oldSwap = s.getSwapBytes();
+  s.setSwapBytes(true);
   s.pushImage(0, 0, WALLPAPER_W, WALLPAPER_H, currentImage());
+  s.setSwapBytes(oldSwap);
 }
 
 void wallpaperNextSet(){
@@ -50,7 +55,7 @@ bool wallpaperToggle(){
 void drawWallPage(){
   clk.setColorDepth(16);
   clk.createSprite(320, 240);
-  clk.pushImage(0, 0, 320, 240, currentImage());
+  wallpaperDrawBg(clk);
   // 顶栏与底部用主题底色遮住图片，保证文字清晰
   clk.fillRect(0, 0, 320, 28, backFillColor);
   clk.fillRect(0, 196, 320, 44, backFillColor);
