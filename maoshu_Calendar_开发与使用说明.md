@@ -1,4 +1,4 @@
-# DuduCalendar 开发与使用说明
+# maoshu_Calendar 开发与使用说明
 
 > 横屏 320×240 日历设备：月历 + 农历/黄历（宜忌）+ 大时钟 + 7 天天气 + 巴法云备忘录推送
 > 硬件平台：ESP32-C3 + 2.4 寸 ST7789 IPS TFT
@@ -72,7 +72,7 @@
 & "C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe" compile `
   --fqbn "esp32:esp32:esp32c3:PartitionScheme=huge_app,FlashFreq=40,FlashMode=dio,CDCOnBoot=cdc" `
   --build-path "$env:TEMP\duducal_build" `
-  "c:\Users\Administrator\Desktop\my-demo2\DuduClock_2.0\DuduCalendar"
+  "c:\Users\Administrator\Desktop\my-demo2\DuduClock_2.0\maoshu_Calendar"
 ```
 
 ### 3. 烧录步骤
@@ -135,8 +135,8 @@ TFT_eSPI `User_Setup.h` 关键配置（已含在本仓库备注）：
 ## 六、软件结构与配置
 
 ```
-DuduCalendar/
-├── DuduCalendar.ino   主流程：初始化、按键、主循环、日/夜主题切换
+maoshu_Calendar/
+├── maoshu_Calendar.ino   主流程：初始化、按键、主循环、日/夜主题切换
 ├── common.h           ★ 全部用户配置（按键脚/NTP/巴法云/天气坐标/热点名）
 ├── cal.cpp/.h         日历页：月历、农历、干支黄历(建除十二神宜忌)、大时钟
 ├── weather.cpp/.h     天气：Open-Meteo 免费API(无需密钥)，30分钟刷新
@@ -150,7 +150,7 @@ DuduCalendar/
 
 - `WEATHER_LAT / WEATHER_LON`：天气坐标（当前为云南大理 25.61, 100.27）
 - `BEMFA_UID / BEMFA_TOPIC`：巴法云私钥与主题（当前 `yourTopic`）
-- `AP_SSID / AP_PASS`：配网热点名（当前 DuduCalendar / 12345678）
+- `AP_SSID / AP_PASS`：配网热点名（当前 maoshu_Calendar / 12345678）
 - `BUTTON`：按键引脚（当前 GPIO8）
 
 **扩充字库**：屏上出现 □ 方框即缺字。用 Python + PIL 读取 `C:\Windows\Fonts\simsun.ttc`，将新字渲染成 16×16 点阵（行优先、每行 2 字节、高位在前），插入 `font/memo_font_16.h` 并保持 `memoFontCp` 数组按 Unicode 升序排列，同时更新 `memo.h` 里的 `MEMO_CJK_COUNT`。
@@ -161,7 +161,7 @@ DuduCalendar/
 
 ### 首次使用（配网）
 
-1. 上电后屏幕显示配网页，手机连接热点 **DuduCalendar**（密码 **12345678**）
+1. 上电后屏幕显示配网页，手机连接热点 **maoshu_Calendar**（密码 **12345678**）
 2. 浏览器打开 **192.168.4.1**，页面自动搜索周边 WiFi（按信号强度排序，显示 强/中/弱 + dBm），点击名称自动填入，只需输入密码，点"保存并重启"
 3. 重启后自动连 WiFi + 阿里云 NTP 校时，进入日历主界面
 

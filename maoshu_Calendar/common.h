@@ -24,7 +24,7 @@
 #define WEATHER_LON "100.27"  // 经度(云南大理)
 
 // ===== 配网热点 =====
-#define AP_SSID "DuduCalendar"
+#define AP_SSID "maoshu_Calendar"
 #define AP_PASS "12345678"
 
 // ===== 页面枚举 =====

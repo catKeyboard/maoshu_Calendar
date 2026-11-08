@@ -30,7 +30,7 @@ static void drawPortalScreen(){
 // 配置页面(配网/换网共用：显示当前网络，自动扫描周围WiFi，点击选择)
 static const char CONFIG_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>DuduCalendar配网</title>
+<title>maoshu_Calendar配网</title>
 <style>
 body{text-align:center;font-size:1.2rem;font-family:sans-serif;max-width:420px;margin:0 auto;padding:12px}
 input{width:90%;height:40px;font-size:1rem;margin:6px 0;padding:0 8px;box-sizing:border-box}
@@ -41,7 +41,7 @@ button{width:70%;height:42px;font-size:1rem;background:#1E90FF;color:#fff;border
 .ap:active{background:#e3f2fd}
 a{color:#1E90FF}
 </style></head><body>
-<h3>DuduCalendar 网络配置</h3>
+<h3>maoshu_Calendar 网络配置</h3>
 <div id='cur'>正在获取状态…</div>
 <form action='/save' method='post'>
 <p><input id='ssid' name='ssid' placeholder='WiFi名称(点下方列表选择)'></p>

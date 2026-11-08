@@ -1,5 +1,5 @@
 /*
- * DuduCalendar - 日历 + 备忘录
+ * maoshu_Calendar - 日历 + 备忘录
  * 硬件：安信可 Core-ESP32(ESP32-C3) + 2.4寸 ST7789V2 SPI屏(240x320, 横屏320x240, 4线SPI) + 单按键(GPIO8)
  * 功能：
  *   - 日历主页：公历月历 + 农历/干支/节日(NTP校时，断网不丢农历)
@@ -48,7 +48,7 @@ static void onLongPress(){
 void setup(){
   Serial.begin(115200);
   tftInit();
-  Serial.println("DuduCalendar 启动");
+  Serial.println("maoshu_Calendar 启动");
   calInit();
   netBegin();    // WiFi/NTP(无凭证或失败进入配网模式)
   memoBegin();   // 备忘录 NVS + 巴法云连接
