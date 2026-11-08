@@ -144,7 +144,7 @@ maoshu_Calendar/
 ├── net.cpp/.h         WiFi连接 + AP配网(192.168.4.1) + NTP校时 + 配置网页
 ├── settings.cpp/.h    运行期配置(NVS)：天气地区、巴法云UID/主题
 ├── tftUtil.cpp/.h     屏幕基座 + 日/夜主题引擎(7:00-19:00自动切换)
-└── font/memo_font_16.h  16×16中文点阵字库(1131字，Unicode排序二分查找)
+└── font/memo_font_16.h  16×16中文点阵字库(1133字，Unicode排序二分查找)
 ```
 
 **常用配置都在 `common.h`**：
