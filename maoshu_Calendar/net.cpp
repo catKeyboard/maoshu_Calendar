@@ -158,7 +158,7 @@ fetch('/status').then(function(r){return r.json()}).then(function(s){
   document.getElementById('uid').value=s.uid;
   document.getElementById('topic').value=s.topic;
   document.getElementById('bcur').textContent=s.uid?'已配置，设备会自动重连巴法云':'尚未配置';
-  document.getElementById('ver').textContent='maoshu_Calendar 固件 '+s.ver;
+  document.getElementById('ver').textContent='maoshu_Calendar 固件 '+s.ver+' · 设备 '+s.id;
   document.getElementById('pFocus').value=s.pFocus;
   document.getElementById('pShort').value=s.pShort;
   document.getElementById('pLong').value=s.pLong;
@@ -230,6 +230,7 @@ static void handleStatus(){
   s += ",\"uid\":\"" + jsonEsc(cfgBemfaUid()) + "\",\"topic\":\"" + jsonEsc(cfgBemfaTopic()) + "\"";
   s += ",\"pFocus\":" + String(cfgPomoFocus()) + ",\"pShort\":" + String(cfgPomoShort());
   s += ",\"pLong\":" + String(cfgPomoLong()) + ",\"pCycle\":" + String(cfgPomoCycle());
+  s += ",\"id\":\"" + cfgDeviceId() + "\"";
   s += ",\"ver\":\"" FW_VERSION "\"}";
   server->send(200, "application/json", s);
 }

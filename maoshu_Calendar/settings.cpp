@@ -1,4 +1,5 @@
 #include <Preferences.h>
+#include <Esp.h>
 #include "common.h"
 #include "settings.h"
 
@@ -8,6 +9,7 @@ static String wLat, wLon, wCity, bUid, bTopic;
 static int pFocus, pShort, pLong, pCycle;
 static bool wallOn;
 static int wallSet;
+static int wallRev;
 
 void settingsBegin(){
   cfgPrefs.begin("cfg", true);
@@ -22,6 +24,7 @@ void settingsBegin(){
   pCycle = cfgPrefs.getInt("pCycle", POMO_CYCLE);
   wallOn = cfgPrefs.getBool("wpOn", false);
   wallSet = cfgPrefs.getInt("wpSet", 0);
+  wallRev = cfgPrefs.getInt("wpRev", 0);
   cfgPrefs.end();
   // 开源固件里的占位符视为"未配置"
   if(bUid == "youUID") bUid = "";
@@ -86,4 +89,23 @@ void settingsSetWall(bool on, int set){
   cfgPrefs.putBool("wpOn", wallOn);
   cfgPrefs.putInt("wpSet", wallSet);
   cfgPrefs.end();
+}
+
+int cfgWallRev(){ return wallRev; }
+
+void settingsSetWallRev(int rev){
+  wallRev = rev;
+  cfgPrefs.begin("cfg", false);
+  cfgPrefs.putInt("wpRev", wallRev);
+  cfgPrefs.end();
+}
+
+// 设备标识：取 MAC 低 3 字节，多块板子各不相同
+String cfgDeviceId(){
+  static String id;
+  if(id.length()) return id;
+  char buf[7];
+  snprintf(buf, sizeof(buf), "%06X", (uint32_t)(ESP.getEfuseMac() & 0xFFFFFF));
+  id = buf;
+  return id;
 }

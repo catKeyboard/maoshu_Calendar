@@ -7,6 +7,7 @@
 #include "weather.h"
 #include "net.h"
 #include "wallpaper.h"
+#include "settings.h"
 #include "cal.h"
 
 // ==================== 农历数据(1900-2100) ====================
@@ -74,38 +75,6 @@ static int lMonthDays(int y, int m){
   return (pgm_read_dword(&lunarInfo[y - 1900]) & (0x10000 >> m)) ? 30 : 29;
 }
 
-// 公历节日(按月日匹配)
-static String solarFestivalName(int m, int d){
-  switch(m * 100 + d){
-    case 101:  return "元旦";
-    case 214:  return "情人节";
-    case 308:  return "妇女节";
-    case 312:  return "植树节";
-    case 501:  return "劳动节";
-    case 504:  return "青年节";
-    case 601:  return "儿童节";
-    case 701:  return "建党节";
-    case 801:  return "建军节";
-    case 910:  return "教师节";
-    case 1001: return "国庆节";
-    case 1225: return "圣诞节";
-  }
-  return "";
-}
-// 农历节日(除夕=腊月最后一天，1900-2100年间无闰腊月)
-static String lunarFestivalName(const LunarInfo& li){
-  if(li.isLeap) return "";
-  if(li.lMonth == 1 && li.lDay == 1)  return "春节";
-  if(li.lMonth == 1 && li.lDay == 15) return "元宵节";
-  if(li.lMonth == 5 && li.lDay == 5)  return "端午节";
-  if(li.lMonth == 7 && li.lDay == 7)  return "七夕节";
-  if(li.lMonth == 8 && li.lDay == 15) return "中秋节";
-  if(li.lMonth == 9 && li.lDay == 9)  return "重阳节";
-  if(li.lMonth == 12 && li.lDay == 8) return "腊八节";
-  if(li.lMonth == 12 && li.lDay == lMonthDays(li.lYear, 12)) return "除夕";
-  return "";
-}
-
 LunarInfo calSolar2Lunar(int cy, int cm, int cd){
   LunarInfo r = {0};
   // 1900-01-31 为农历1900年正月初一
@@ -150,43 +119,14 @@ LunarInfo calSolar2Lunar(int cy, int cm, int cd){
   else if(r.lDay == 20) r.dayCn = "二十";
   else if(r.lDay < 30)  r.dayCn = String("廿") + nn[r.lDay - 21];
   else                  r.dayCn = "三十";
-  // 节日：农历优先，其次公历
-  r.festival = lunarFestivalName(r);
-  if(!r.festival.length()) r.festival = solarFestivalName(cm, cd);
   return r;
-}
-
-String calYearGZ(int lYear){
-  static const char* gan[10] = {"甲","乙","丙","丁","戊","己","庚","辛","壬","癸"};
-  static const char* zhi[12] = {"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
-  static const char* ani[12] = {"鼠","牛","虎","兔","龙","蛇","马","羊","猴","鸡","狗","猪"};
-  int g = (lYear - 4) % 10;
-  int z = (lYear - 4) % 12;
-  return String(gan[g]) + zhi[z] + ani[z] + "年";
-}
-
-int calDaysInMonth(int y, int m){
-  static const int md[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
-  if(m == 2) return isLeapYear(y) ? 29 : 28;
-  return md[m - 1];
-}
-
-int calDow(int y, int m, int d){
-  // 1900-01-01 为周一，0=周日
-  return (int)((daysSince1900(y, m, d) + 1) % 7);
 }
 
 void calInit(){
   // 预留
 }
 
-// ==================== 日历页绘制(横屏320x240, 按用户示意图) ====================
-// 布局：顶栏(日期+星期+WiFi点) | 左:月历(y28..194)+天气条(y196..240) | 右:大时钟/黄历/宜/忌
-// 单元格内绘制数字(ASCII 8x16 在 cw 宽度内居中)
-static void drawNum(TFT_eSprite &s, int gx, int cw, int y, int n, uint16_t c){
-  String t = String(n);
-  drawMemoString(s, gx + (cw - (int)t.length() * 8) / 2, y, t, c);
-}
+// ==================== 桌面页(原日历页) ====================
 // 大号ASCII字符(8x16点阵放大sc倍)
 static void drawBigChar(TFT_eSprite &s, int x, int y, char c, int sc, uint16_t color){
   if(c < 0x20 || c > 0x7E) return;
@@ -203,29 +143,82 @@ static int calDayGZ(int y, int m, int d){
   long jdn = d + (153 * mm + 2) / 5 + 365L * yy + yy / 4 - yy / 100 + yy / 400 - 32045;
   return (int)((jdn + 49) % 60);
 }
-// 建除十二神宜忌(简化通书版)
-static const char* YIJI[12][2] = {
-  {"出行","动土"},{"打扫","嫁娶"},{"祭祀","求医"},{"修造","词讼"},
-  {"签约","出行"},{"捕捉","搬迁"},{"拆屋","开市"},{"安床","登高"},
-  {"开业","诉讼"},{"纳财","安葬"},{"开工","安葬"},{"修坟","开市"}
+// 建除十二神宜忌(简化通书版)：每日 4 宜 4 忌，面板内分 2 行显示
+static const char* YIJI[12][8] = {
+  // 宜1    宜2    宜3    宜4    忌1    忌2    忌3    忌4
+  {"出行","开业","签约","纳财", "动土","安葬","词讼","搬迁"},  // 建
+  {"打扫","求医","拆屋","祭祀", "嫁娶","出行","签约","开市"},  // 除
+  {"祭祀","纳财","安床","签约", "求医","搬迁","开市","词讼"},  // 满
+  {"修造","打扫","签约","纳财", "出行","动土","登高","安葬"},  // 平
+  {"嫁娶","签约","安床","祭祀", "词讼","搬迁","出行","拆屋"},  // 定
+  {"捕捉","修造","纳财","开市", "出行","搬迁","词讼","安葬"},  // 执
+  {"拆屋","求医","打扫","修坟", "嫁娶","开市","签约","出行"},  // 破
+  {"安床","祭祀","求医","纳财", "登高","出行","动土","开市"},  // 危
+  {"开业","嫁娶","出行","签约", "词讼","安葬","拆屋","动土"},  // 成
+  {"纳财","签约","捕捉","修造", "开市","安葬","搬迁","词讼"},  // 收
+  {"开工","开业","修造","纳财", "安葬","词讼","拆屋","出行"},  // 开
+  {"修坟","安葬","纳财","祭祀", "开市","出行","求医","嫁娶"}   // 闭
 };
-static const char* SHEN12[12] = {"建","除","满","平","定","执","破","危","成","收","开","闭"};
 
-// 右栏黄历：返回宜/忌文本
-static void calYiJi(int y, int m, int d, LunarInfo& li, String& yi, String& ji){
+// 黄历：返回宜/忌各4项(面板内按两行两列对齐显示)
+static void calYiJi(int y, int m, int d, LunarInfo& li, String yi[4], String ji[4]){
   int dayBr = calDayGZ(y, m, d) % 12;              // 日支(子=0)
   int monBr = (li.lMonth + 1) % 12;                // 月支(正月寅=2)
   int shen = (dayBr - monBr + 12) % 12;
-  yi = String("宜：") + YIJI[shen][0];
-  ji = String("忌：") + YIJI[shen][1];
+  for(int i = 0; i < 4; i++){
+    yi[i] = YIJI[shen][i];
+    ji[i] = YIJI[shen][4 + i];
+  }
+}
+
+// ==================== 桌面页(原日历页) ====================
+// 布局：参考插画右侧的深色面板——星期行 / 大时钟 / 农历 / 天气 / 宜
+// 交互：单击→备忘录，双击→天气页，三击→壁纸页
+#define PANEL_X 204     // 面板区域(与第1套壁纸自带面板对齐)
+#define PANEL_Y 6
+#define PANEL_W 104
+#define PANEL_H 222
+#define PANEL_BG  0x1907   // 深蓝面板底色
+#define GOLD      0xE64F   // 主金色
+#define GOLD_DIM  0xB50F   // 次金色
+
+static inline uint16_t swapColor(uint16_t c){ return (uint16_t)((c >> 8) | (c << 8)); }
+// 两色按 a/255 向 bg 混合
+static inline uint16_t mixColor(uint16_t c, uint16_t bg, uint8_t a){
+  uint16_t ia = 255 - a;
+  uint16_t r = ((((c >> 11) & 0x1F) * ia) + (((bg >> 11) & 0x1F) * a)) / 255;
+  uint16_t g = ((((c >>  5) & 0x3F) * ia) + (((bg >>  5) & 0x3F) * a)) / 255;
+  uint16_t b = ((((c      ) & 0x1F) * ia) + (((bg      ) & 0x1F) * a)) / 255;
+  return (uint16_t)((r << 11) | (g << 5) | b);
+}
+// 半透明圆角卡片：直接混合精灵像素，圆角外跳过
+static void blendCard(TFT_eSprite &s, int x, int y, int w, int h, int r, uint16_t color, uint8_t a){
+  uint16_t *buf = (uint16_t*)s.getPointer();
+  if(buf == nullptr) return;
+  for(int yy = 0; yy < h; yy++){
+    int dy = 0;
+    if(yy < r) dy = r - yy;
+    else if(yy >= h - r) dy = yy - (h - r) + 1;
+    for(int xx = 0; xx < w; xx++){
+      int dx = 0;
+      if(xx < r) dx = r - xx;
+      else if(xx >= w - r) dx = xx - (w - r) + 1;
+      if(dx && dy && dx * dx + dy * dy > r * r) continue;
+      int idx = (y + yy) * 320 + (x + xx);
+      buf[idx] = swapColor(mixColor(swapColor(buf[idx]), color, a));
+    }
+  }
 }
 
 void drawCalPage(){
   time_t now = time(nullptr);
   clk.setColorDepth(16);
   clk.createSprite(320, 240);
-  clk.fillSprite(backFillColor);
-  if(wallpaperOn()) wallpaperDrawBg(clk, true);   // 壁纸背景(带主题蒙层，保证文字可读)
+  bool wp = wallpaperOn();
+  if(wp) wallpaperDrawBg(clk);   // 壁纸原图铺底(文字都在深色面板内)
+  else clk.fillSprite(backFillColor);
+  // 右侧面板：有壁纸时半透明压深(保留插画装饰)，无壁纸时接近实底
+  blendCard(clk, PANEL_X, PANEL_Y, PANEL_W, PANEL_H, 10, PANEL_BG, wp ? 170 : 235);
   if(now < 100000){  // NTP尚未同步
     drawMemoString(clk, 112, 100, "等待时间同步", waitColor);
     drawMemoString(clk, 12, 150, netDiag(), cyanColor);
@@ -236,61 +229,89 @@ void drawCalPage(){
   struct tm* t = localtime(&now);
   int y = t->tm_year + 1900, m = t->tm_mon + 1, d = t->tm_mday;
   static const char* wk[7] = {"日","一","二","三","四","五","六"};
-  // ---- 顶栏：2026年11月3日(橙) + 星期二(主文字色) + WiFi状态点 ----
-  char title[24];
-  snprintf(title, sizeof(title), "%d年%d月%d日", y, m, d);
-  drawMemoString(clk, 8, 8, String(title), orangeColor);
-  drawMemoString(clk, 124, 8, String("星期") + wk[t->tm_wday], penColor);
-  if(netConnected()) drawMemoString(clk, 180, 8, WiFi.localIP().toString(), subColor);  // IP即配置页地址
-  clk.fillCircle(310, 14, 5, netConnected() ? greenColor : wifiRedColor);
-  clk.drawFastHLine(0, 28, 320, dividerColor);
-  // ---- 左侧月历：7列x27px，起点x=2，y28..194 ----
-  for(int i = 0; i < 7; i++){
-    uint16_t c = (i == 0) ? orangeColor : (i == 6 ? cyanColor : subColor);
-    drawMemoString(clk, 2 + i * 27 + 5, 34, wk[i], c);
-  }
-  int col = calDow(y, m, 1), row = 0;
-  int dim = calDaysInMonth(y, m);
-  for(int dd = 1; dd <= dim; dd++){
-    int gx = 2 + col * 27, gy = 56 + row * 22;
-    if(dd == d){  // 今日高亮
-      clk.fillRoundRect(gx + 1, gy - 4, 25, 20, 5, redColor);
-      drawNum(clk, gx, 27, gy, dd, TFT_WHITE);
-    } else {
-      uint16_t c = (col == 0) ? sunColor : (col == 6 ? satColor : dateColor);
-      drawNum(clk, gx, 27, gy, dd, c);
-    }
-    if(++col > 6){ col = 0; row++; }
-  }
-  // ---- 左下天气条：7天，标签+天气字 ----
-  clk.drawFastHLine(0, 196, 196, dividerColor);
-  if(weatherValid()){
-    static const char* WTEXT[7] = {"晴","云","阴","雨","雪","雾","雷"};
-    const uint16_t WCOL[7] = {orangeColor, penColor, subColor, cyanColor, lightCyanColor, subColor, yellowColor};
-    for(int i = 0; i < 7; i++){
-      int wx = 2 + i * 27 + 5;
-      int wd = (t->tm_wday + i) % 7;
-      drawMemoString(clk, wx, 202, String(i == 0 ? "今" : wk[wd]), subColor);
-      drawMemoString(clk, wx, 222, WTEXT[weatherCode(i)], WCOL[weatherCode(i)]);
-    }
-  } else {
-    drawMemoString(clk, 54, 210, "天气获取中", subColor);
-  }
-  // ---- 右栏(x196..320)：大时钟/黄历/宜/忌 ----
-  clk.drawFastVLine(196, 28, 212, dividerColor);
+  const int PCX = PANEL_X + PANEL_W / 2;   // 面板水平中心
+
+  // ---- 星期(仅当天) ----
+  String wkd = String("星期") + wk[t->tm_wday];
+  drawMemoString(clk, PCX - memoTextWidth(wkd) / 2, 22, wkd, GOLD);
+  // ---- 大时钟(8x16 ASCII 放大2倍) ----
   char hm[6];
   snprintf(hm, sizeof(hm), "%02d:%02d", t->tm_hour, t->tm_min);
-  for(int i = 0; i < 5; i++) drawBigChar(clk, 198 + i * 24, 38, hm[i], 3, penColor);
-  clk.drawFastHLine(196, 96, 124, dividerColor);
+  for(int i = 0; i < 5; i++) drawBigChar(clk, PCX - 40 + i * 16, 46, hm[i], 2, GOLD);
+  // ---- 农历 ----
   LunarInfo li = calSolar2Lunar(y, m, d);
-  drawMemoString(clk, 226, 100, calYearGZ(li.lYear), greenColor);      // 丙午马年
-  drawMemoString(clk, 226, 120, li.monthCn + li.dayCn, greenColor);    // 九月初四
-  clk.drawFastHLine(196, 144, 124, dividerColor);
-  String yi, ji;
+  String ld = li.monthCn + li.dayCn;
+  drawMemoString(clk, PCX - memoTextWidth(ld) / 2, 80, ld, GOLD_DIM);
+  // ---- 今日天气(天气词 + 最高温) ----
+  String wline = "天气获取中";
+  uint16_t wcol = GOLD_DIM;
+  if(weatherValid()){
+    static const char* WTEXT[7] = {"晴","多云","阴","雨","雪","雾","雷雨"};
+    wline = WTEXT[weatherCode(0)];
+    if(weatherHasTemp()) wline += String(" ") + String(weatherHigh(0)) + "℃";
+    wcol = GOLD;
+  }
+  drawMemoString(clk, PCX - memoTextWidth(wline) / 2, 102, wline, wcol);
+  // ---- 今日宜 / 忌：两行两列对齐 ----
+  String yi[4], ji[4];
   calYiJi(y, m, d, li, yi, ji);
-  drawMemoString(clk, 226, 160, yi, greenColor);                       // 宜：xx(绿)
-  clk.drawFastHLine(196, 192, 124, dividerColor);
-  drawMemoString(clk, 226, 208, ji, redColor);                         // 忌：xx(红)
+  const int COL1 = 228, COL2 = 272;   // 两列起点(中文16px宽)
+  drawMemoString(clk, 206, 124, "宜", GOLD);
+  drawMemoString(clk, COL1, 124, yi[0], GOLD);
+  drawMemoString(clk, COL2, 124, yi[1], GOLD);
+  drawMemoString(clk, COL1, 142, yi[2], GOLD);
+  drawMemoString(clk, COL2, 142, yi[3], GOLD);
+  drawMemoString(clk, 206, 160, "忌", GOLD_DIM);
+  drawMemoString(clk, COL1, 160, ji[0], GOLD_DIM);
+  drawMemoString(clk, COL2, 160, ji[1], GOLD_DIM);
+  drawMemoString(clk, COL1, 178, ji[2], GOLD_DIM);
+  drawMemoString(clk, COL2, 178, ji[3], GOLD_DIM);
+
+  // WiFi状态点
+  clk.fillCircle(310, 6, 4, netConnected() ? greenColor : wifiRedColor);
+  clk.pushSprite(0, 0);
+  clk.deleteSprite();
+}
+
+// ==================== 天气页(7天预报) ====================
+void drawWeatherPage(){
+  clk.setColorDepth(16);
+  clk.createSprite(320, 240);
+  clk.fillSprite(backFillColor);
+  drawMemoString(clk, 8, 8, "本周天气", orangeColor);
+  String city = cfgWeatherCity();
+  if(city.length()) drawMemoString(clk, 150 - memoTextWidth(city) / 2, 8, city, penColor);
+  clk.fillCircle(310, 14, 5, netConnected() ? greenColor : wifiRedColor);
+  clk.drawFastHLine(0, 28, 320, dividerColor);
+  if(!weatherValid()){
+    String s = "天气获取中";
+    drawMemoString(clk, (320 - memoTextWidth(s)) / 2, 108, s, subColor);
+  } else {
+    static const char* WTEXT[7] = {"晴","多云","阴","雨","雪","雾","雷雨"};
+    const uint16_t WCOL[7] = {orangeColor, penColor, subColor, cyanColor,
+                              lightCyanColor, subColor, yellowColor};
+    static const char* wk[7] = {"日","一","二","三","四","五","六"};
+    time_t now = time(nullptr);
+    struct tm* t = localtime(&now);
+    for(int i = 0; i < 7; i++){
+      int ry = 32 + i * 27;
+      time_t dayT = now + (time_t)i * 86400;
+      struct tm* dt = localtime(&dayT);
+      String label = (i == 0) ? "今天" : String("周") + wk[dt->tm_wday];
+      drawMemoString(clk, 12, ry, label, i == 0 ? orangeColor : penColor);
+      char md[10];
+      snprintf(md, sizeof(md), "%d/%d", dt->tm_mon + 1, dt->tm_mday);
+      drawMemoString(clk, 72, ry, md, subColor);
+      int wc = weatherCode(i);
+      drawMemoString(clk, 146, ry, WTEXT[wc], WCOL[wc]);
+      String temp = "--";
+      if(weatherHasTemp()) temp = String(weatherHigh(i)) + "/" + String(weatherLow(i)) + "℃";
+      drawMemoString(clk, 312 - memoTextWidth(temp), ry, temp, penColor);
+      if(i < 6) clk.drawFastHLine(12, ry + 24, 296, dividerColor);
+    }
+  }
+  String tip = "单击 返回桌面";
+  drawMemoString(clk, (320 - memoTextWidth(tip)) / 2, 218, tip, subColor);
   clk.pushSprite(0, 0);
   clk.deleteSprite();
 }

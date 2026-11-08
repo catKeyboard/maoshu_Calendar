@@ -25,5 +25,9 @@ void settingsSetPomo(int focus, int shortMin, int longMin, int cycle);
 bool cfgWallOn();                       // 日历页壁纸是否启用
 int  cfgWallSet();                      // 当前壁纸套编号(0起)
 void settingsSetWall(bool on, int set); // 保存壁纸开关与套编号
+int  cfgWallRev();                      // 壁纸配置版本(升级时凭此一次性切换默认壁纸)
+void settingsSetWallRev(int rev);
+
+String cfgDeviceId();                   // 设备标识(MAC后3字节，6位十六进制)，用于区分多块板子
 
 #endif
