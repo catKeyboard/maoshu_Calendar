@@ -28,13 +28,18 @@ enum CurrentPage currentPage = PAGE_CAL;
 static OneButton button(BUTTON, true);
 static int lastMin = -1;
 
-// 单击：日历→备忘录→番茄→日历 循环；备忘录翻页；番茄开始/暂停
+// 单击：日历→备忘录；备忘录翻页(末页再单击进番茄)；番茄开始/暂停
 static void onClick(){
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_MEMO;
     drawMemoPage();
   } else if(currentPage == PAGE_MEMO){
-    memoNextPage();
+    if(memoAtLastPage()){
+      currentPage = PAGE_POMO;
+      drawPomoPage();
+    } else {
+      memoNextPage();
+    }
   } else {
     pomoClick();
   }

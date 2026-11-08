@@ -9,6 +9,7 @@ void memoBegin(void);        // 初始化：读取NVS中的备忘录并准备云
 void memoCloudLoop(void);    // 主循环调用：维持MQTT连接、接收云端推送
 void memoLoop(void);         // 备忘录页面轮询：多页时自动翻页
 void memoNextPage(void);     // 手动翻到下一页
+bool memoAtLastPage(void);   // 是否已显示最后一页(末页单击进番茄页)
 void drawMemoPage(void);     // 绘制整个备忘录页面
 void drawMemoContent(void);  // 只重绘内容区（翻页时用）
 void memoClearAll(void);     // 清空全部备忘录

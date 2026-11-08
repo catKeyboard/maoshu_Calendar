@@ -383,6 +383,10 @@ void memoNextPage(){
   memoPageIdx = (memoPageIdx + 1) % memoPages;
   drawMemoContent();
 }
+// 是否已显示最后一页(用于单击进入番茄页)
+bool memoAtLastPage(){
+  return memoPageIdx >= memoPages - 1;
+}
 // 备忘录页面轮询：多页时自动翻页
 void memoLoop(){
   static unsigned long last = 0;
