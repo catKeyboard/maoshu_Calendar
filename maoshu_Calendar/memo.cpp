@@ -3,6 +3,7 @@
 #include <Preferences.h>
 #include <vector>
 #include "common.h"
+#include "settings.h"
 #include "tftUtil.h"
 #include "memo.h"
 #include "font/memo_font_16.h"
@@ -27,9 +28,9 @@ int memoPages = 1;               // 总页数
 WiFiClient memoClient;
 PubSubClient mqtt(memoClient);
 
-// 判断是否配置了巴法云
+// 判断是否配置了巴法云(UID/主题可在配置网页里设置)
 bool memoConfigured(){
-  return String(BEMFA_UID).length() > 0 && String(BEMFA_TOPIC).length() > 0;
+  return cfgBemfaUid().length() > 0 && cfgBemfaTopic().length() > 0;
 }
 
 ///////////////// NVS存取区域 /////////////////
@@ -189,27 +190,37 @@ void memoConnect(){
   if(mqtt.connected()) return;
   Serial.println("正在连接巴法云...");
   // 用户私钥作为clientId，无需用户名密码
-  if(mqtt.connect(BEMFA_UID)){
+  if(mqtt.connect(cfgBemfaUid().c_str())){
     Serial.println("巴法云连接成功");
-    mqtt.subscribe(BEMFA_TOPIC);
+    mqtt.subscribe(cfgBemfaTopic().c_str());
   }else{
     Serial.print("巴法云连接失败,状态码:");
     Serial.println(mqtt.state());
   }
 }
 // 初始化云端连接
-void memoBegin(){
-  if(!memoConfigured()){
-    Serial.println("未配置巴法云(common.h中BEMFA_UID为空)，备忘录推送功能停用");
-    return;
-  }
-  memoLoadFromNVS();
+static bool mqttReady = false;
+static void mqttSetup(){
   mqtt.setServer(MEMO_MQTT_SERVER, MEMO_MQTT_PORT);
   mqtt.setCallback(mqttCallback);
   mqtt.setBufferSize(512);
   mqtt.setKeepAlive(30);
   mqtt.setSocketTimeout(4);
+  mqttReady = true;
+}
+void memoBegin(){
+  memoLoadFromNVS();
+  if(!memoConfigured()){
+    Serial.println("未配置巴法云(可在设备配置网页中填写)，备忘录推送功能待配置");
+    return;
+  }
+  mqttSetup();
   Serial.println("备忘录功能已就绪");
+}
+// 配置网页改过UID/主题后调用：断开旧连接，下次循环用新参数重连
+void memoReloadConfig(){
+  if(mqtt.connected()) mqtt.disconnect();
+  if(!mqttReady) mqttSetup();
 }
 // 主循环中调用，维持连接并处理消息
 void memoCloudLoop(){
@@ -323,11 +334,11 @@ void drawMemoContent(){
       tips.push_back("手机端: 微信小程序巴法云");
       tips.push_back("电脑端: bemfa.com 控制台");
       tips.push_back("向下面主题推送消息即可");
-      tips.push_back(String(BEMFA_TOPIC));
+      tips.push_back(cfgBemfaTopic());
     }else{
       tips.push_back("未配置推送账号");
-      tips.push_back("请在common.h中填写");
-      tips.push_back("BEMFA_UID 和 BEMFA_TOPIC");
+      tips.push_back("请浏览器访问设备IP");
+      tips.push_back("在配置页填写巴法云");
     }
     int y = 40;
     for(size_t i = 0; i < tips.size(); i++){

@@ -1,9 +1,10 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include "common.h"
+#include "settings.h"
 #include "weather.h"
 
-// 一周天气：Open-Meteo 免费API(无需密钥)，坐标在 common.h 配置
+// 一周天气：Open-Meteo 免费API(无需密钥)，坐标可在配置网页中修改(存NVS)
 static int codes[7];            // 简化天气代码，0=今天
 static bool valid = false;
 static unsigned long lastFetch = 0;
@@ -45,8 +46,8 @@ static void parseCodes(const String& body){
 
 static void fetchWeather(){
   if(WiFi.status() != WL_CONNECTED) return;
-  String url = String("http://api.open-meteo.com/v1/forecast?latitude=") + WEATHER_LAT
-             + "&longitude=" + WEATHER_LON
+  String url = String("http://api.open-meteo.com/v1/forecast?latitude=") + cfgWeatherLat()
+             + "&longitude=" + cfgWeatherLon()
              + "&daily=weather_code&timezone=auto&forecast_days=7";
   HTTPClient http;
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
@@ -69,6 +70,12 @@ void weatherLoop(){
   if(millis() - lastFetch < 1800000UL) return;  // 30分钟刷新一次
   lastFetch = millis();
   fetchWeather();
+}
+
+// 地区变更后调用：立即用新坐标重新获取
+void weatherRefreshNow(){
+  valid = false;
+  lastFetch = millis() - 1800000UL;  // 让 weatherLoop 立即触发一次获取
 }
 
 bool weatherValid(){ return valid; }

@@ -12,6 +12,7 @@ void memoNextPage(void);     // 手动翻到下一页
 void drawMemoPage(void);     // 绘制整个备忘录页面
 void drawMemoContent(void);  // 只重绘内容区（翻页时用）
 void memoClearAll(void);     // 清空全部备忘录
+void memoReloadConfig(void); // 配置页改了巴法云参数后调用，重新连接
 bool memoConfigured(void);   // 是否已配置巴法云推送
 
 // 供日历页复用的点阵文字绘制(16x16中文字库 + 8x16 ASCII)

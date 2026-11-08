@@ -18,6 +18,7 @@
 #include "memo.h"
 #include "net.h"
 #include "weather.h"
+#include "settings.h"
 
 // 页面状态
 enum CurrentPage currentPage = PAGE_CAL;
@@ -50,6 +51,7 @@ void setup(){
   tftInit();
   Serial.println("maoshu_Calendar 启动");
   calInit();
+  settingsBegin(); // 读取NVS中的天气地区/巴法云配置
   netBegin();    // WiFi/NTP(无凭证或失败进入配网模式)
   memoBegin();   // 备忘录 NVS + 巴法云连接
   weatherBegin(); // 一周天气(Open-Meteo)

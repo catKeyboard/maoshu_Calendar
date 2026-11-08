@@ -5,6 +5,8 @@
 #include "common.h"
 #include "tftUtil.h"
 #include "memo.h"
+#include "settings.h"
+#include "weather.h"
 #include "net.h"
 
 // 网络：WiFi连接 + 精简AP配网 + NTP校时
@@ -27,36 +29,120 @@ static void drawPortalScreen(){
   clk.deleteSprite();
 }
 
-// 配置页面(配网/换网共用：显示当前网络，自动扫描周围WiFi，点击选择)
+// 配置页面(网络/天气地区/巴法云，配网与换网共用)
 static const char CONFIG_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>maoshu_Calendar配网</title>
+<title>maoshu_Calendar 配置</title>
 <style>
-body{text-align:center;font-size:1.2rem;font-family:sans-serif;max-width:420px;margin:0 auto;padding:12px}
-input{width:90%;height:40px;font-size:1rem;margin:6px 0;padding:0 8px;box-sizing:border-box}
-button{width:70%;height:42px;font-size:1rem;background:#1E90FF;color:#fff;border:0;border-radius:6px;margin-top:8px}
-#cur{padding:8px;background:#f0f7ff;border-radius:6px;font-size:1rem}
-#list{text-align:left;margin-top:14px;max-height:45vh;overflow-y:auto}
-.ap{padding:10px 8px;border-bottom:1px solid #ddd;cursor:pointer;display:flex;justify-content:space-between}
+body{font-family:sans-serif;max-width:460px;margin:0 auto;padding:10px;font-size:1rem}
+h3{margin:16px 0 8px;font-size:1.05rem;border-left:4px solid #1E90FF;padding-left:8px}
+input,select{width:100%;height:38px;font-size:.95rem;margin:4px 0;padding:0 6px;box-sizing:border-box}
+button{width:100%;height:40px;font-size:1rem;background:#1E90FF;color:#fff;border:0;border-radius:6px;margin-top:6px}
+#cur{padding:8px;background:#f0f7ff;border-radius:6px;font-size:.95rem}
+#list{max-height:34vh;overflow-y:auto;margin-top:8px;border:1px solid #eee;border-radius:6px}
+.ap{padding:9px 8px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;cursor:pointer}
 .ap:active{background:#e3f2fd}
-a{color:#1E90FF}
+.row{display:flex;gap:8px}
+a{color:#1E90FF;font-size:.9rem}
+.tip{color:#888;font-size:.85rem;margin:2px 0 6px}
 </style></head><body>
-<h3>maoshu_Calendar 网络配置</h3>
+
+<h3>网络</h3>
 <div id='cur'>正在获取状态…</div>
 <form action='/save' method='post'>
-<p><input id='ssid' name='ssid' placeholder='WiFi名称(点下方列表选择)'></p>
-<p><input name='pass' type='password' placeholder='WiFi密码'></p>
-<p><button type='submit'>保存并重启</button></p>
+<input id='ssid' name='ssid' placeholder='WiFi名称(点下方列表选择)'>
+<input name='pass' type='password' placeholder='WiFi密码'>
+<button type='submit'>保存并重启</button>
 </form>
+<p><a href='#' onclick='loadScan();return false'>重新扫描周边WiFi</a></p>
 <div id='list'>正在搜索周围WiFi…</div>
-<p><a href='#' onclick='loadScan();return false'>重新扫描</a></p>
+
+<h3>天气地区</h3>
+<div class='tip' id='wcur'></div>
+<form action='/weather' method='post'>
+<select id='prov' onchange='fillCity()'></select>
+<select id='city' name='city' onchange='fillCoord()'></select>
+<div class='row'>
+<input id='lat' name='lat' placeholder='纬度'>
+<input id='lon' name='lon' placeholder='经度'>
+</div>
+<button type='submit'>保存地区</button>
+</form>
+<div class='tip'>选择省市会自动填好经纬度，也可直接手填(保留两位小数)</div>
+
+<h3>巴法云推送</h3>
+<div class='tip'>UID=巴法云控制台32位私钥，主题名与小程序的发送主题一致</div>
+<form action='/bemfa' method='post'>
+<input id='uid' name='uid' placeholder='私钥UID(32位)' maxlength='40'>
+<input id='topic' name='topic' placeholder='主题名' maxlength='32'>
+<button type='submit'>保存并连接</button>
+</form>
+<div class='tip' id='bcur'></div>
+
 <script>
+var REG=[["北京",[["北京",39.90,116.41]]],["天津",[["天津",39.13,117.20]]],["上海",[["上海",31.23,121.47]]],["重庆",[["重庆",29.56,106.55]]],
+["河北",[["石家庄",38.04,114.51],["唐山",39.63,118.18],["保定",38.87,115.46],["邯郸",36.63,114.54],["秦皇岛",39.94,119.60]]],
+["山西",[["太原",37.87,112.55],["大同",40.08,113.30],["临汾",36.09,111.52],["运城",35.03,111.00]]],
+["内蒙古",[["呼和浩特",40.84,111.75],["包头",40.66,109.84],["赤峰",42.26,118.89],["鄂尔多斯",39.61,109.78]]],
+["辽宁",[["沈阳",41.80,123.43],["大连",38.91,121.61],["鞍山",41.11,122.99],["锦州",41.10,121.13]]],
+["吉林",[["长春",43.82,125.32],["吉林",43.84,126.55],["延吉",42.89,129.51]]],
+["黑龙江",[["哈尔滨",45.80,126.53],["齐齐哈尔",47.35,123.92],["大庆",46.59,125.10],["牡丹江",44.55,129.63]]],
+["江苏",[["南京",32.06,118.80],["苏州",31.30,120.58],["无锡",31.49,120.31],["常州",31.81,119.97],["南通",31.98,120.89],["徐州",34.26,117.19]]],
+["浙江",[["杭州",30.27,120.15],["宁波",29.87,121.55],["温州",27.99,120.70],["绍兴",30.00,120.58],["金华",29.08,119.65]]],
+["安徽",[["合肥",31.82,117.23],["芜湖",31.35,118.43],["蚌埠",32.92,117.39],["安庆",30.51,117.05],["黄山",29.71,118.34]]],
+["福建",[["福州",26.07,119.30],["厦门",24.48,118.09],["泉州",24.87,118.68],["漳州",24.51,117.65],["龙岩",25.08,117.03]]],
+["江西",[["南昌",28.68,115.86],["九江",29.71,116.00],["赣州",25.83,114.94],["上饶",28.45,117.94]]],
+["山东",[["济南",36.65,117.12],["青岛",36.07,120.38],["烟台",37.46,121.45],["潍坊",36.71,119.16],["临沂",35.10,118.36],["济宁",35.41,116.59]]],
+["河南",[["郑州",34.75,113.63],["洛阳",34.62,112.45],["开封",34.80,114.31],["南阳",32.99,112.53],["新乡",35.30,113.93]]],
+["湖北",[["武汉",30.59,114.31],["宜昌",30.69,111.29],["襄阳",32.01,112.12],["荆州",30.33,112.24]]],
+["湖南",[["长沙",28.23,112.94],["株洲",27.83,113.13],["衡阳",26.89,112.57],["岳阳",29.36,113.13],["张家界",29.13,110.48]]],
+["广东",[["广州",23.13,113.26],["深圳",22.54,114.06],["珠海",22.27,113.58],["佛山",23.02,113.12],["东莞",23.02,113.75],["汕头",23.35,116.68],["湛江",21.27,110.36]]],
+["广西",[["南宁",22.82,108.37],["桂林",25.27,110.29],["柳州",24.31,109.41],["北海",21.48,109.12]]],
+["海南",[["海口",20.04,110.32],["三亚",18.25,109.51]]],
+["四川",[["成都",30.57,104.07],["绵阳",31.47,104.68],["乐山",29.55,103.77],["宜宾",28.77,104.62],["南充",30.84,106.11]]],
+["贵州",[["贵阳",26.65,106.63],["遵义",27.73,106.93],["六盘水",26.59,104.83],["安顺",26.25,105.95]]],
+["云南",[["昆明",25.04,102.71],["大理",25.61,100.27],["丽江",26.86,100.23],["曲靖",25.49,103.80],["景洪",22.00,100.80],["香格里拉",27.83,99.71]]],
+["西藏",[["拉萨",29.65,91.14],["日喀则",29.27,88.88],["林芝",29.65,94.36]]],
+["陕西",[["西安",34.34,108.94],["宝鸡",34.36,107.24],["咸阳",34.33,108.71],["延安",36.59,109.49],["汉中",33.07,107.02]]],
+["甘肃",[["兰州",36.06,103.83],["天水",34.58,105.72],["酒泉",39.73,98.49],["张掖",38.93,100.45]]],
+["青海",[["西宁",36.62,101.78],["海东",36.50,102.10],["格尔木",36.40,94.90]]],
+["宁夏",[["银川",38.49,106.23],["石嘴山",38.98,106.38],["吴忠",37.99,106.20]]],
+["新疆",[["乌鲁木齐",43.83,87.62],["喀什",39.47,75.99],["伊宁",43.92,81.32],["库尔勒",41.73,86.17],["克拉玛依",45.58,84.89]]],
+["台湾",[["台北",25.03,121.57],["高雄",22.63,120.30],["台中",24.15,120.68]]],
+["香港",[["香港",22.32,114.17]]],["澳门",[["澳门",22.20,113.54]]]];
+
+var provSel=document.getElementById('prov'),citySel=document.getElementById('city');
+for(var i=0;i<REG.length;i++){
+  var o=document.createElement('option');o.value=i;o.textContent=REG[i][0];provSel.appendChild(o);
+}
+function fillCity(){
+  var p=REG[provSel.value][1];
+  citySel.innerHTML='';
+  for(var i=0;i<p.length;i++){
+    var o=document.createElement('option');o.value=i;o.textContent=p[i][0];citySel.appendChild(o);
+  }
+  fillCoord();
+}
+function fillCoord(){
+  var p=REG[provSel.value][1][citySel.value];
+  document.getElementById('lat').value=p[1];
+  document.getElementById('lon').value=p[2];
+}
+fillCity();
+
 fetch('/status').then(function(r){return r.json()}).then(function(s){
   var el=document.getElementById('cur');
   if(s.mode==='ap') el.textContent='当前未连接WiFi，请选择网络配置';
   else if(s.ssid) el.textContent='当前网络：'+s.ssid+' ('+s.ip+')';
   else el.textContent='WiFi未连接';
-});
+  document.getElementById('wcur').textContent='当前地区：'+s.city+' ('+s.lat+', '+s.lon+')';
+  document.getElementById('lat').value=s.lat;
+  document.getElementById('lon').value=s.lon;
+  document.getElementById('uid').value=s.uid;
+  document.getElementById('topic').value=s.topic;
+  document.getElementById('bcur').textContent=s.uid?'已配置，设备会自动重连巴法云':'尚未配置';
+}).catch(function(){});
+
 function loadScan(){
   var list=document.getElementById('list');
   list.textContent='正在搜索周围WiFi…';
@@ -103,14 +189,62 @@ static void handleScan(){
   server->send(200, "application/json", json);
 }
 
-// 当前网络状态
+// JSON字符串转义
+static String jsonEsc(const String& v){
+  String s = v;
+  s.replace("\\", "\\\\");
+  s.replace("\"", "\\\"");
+  return s;
+}
+
+// 当前网络/配置状态
 static void handleStatus(){
-  String s;
-  if(portalMode) s = "{\"mode\":\"ap\"}";
-  else if(WiFi.status() == WL_CONNECTED)
-    s = "{\"mode\":\"sta\",\"ssid\":\"" + WiFi.SSID() + "\",\"ip\":\"" + WiFi.localIP().toString() + "\"}";
-  else s = "{\"mode\":\"sta\",\"ssid\":\"\",\"ip\":\"\"}";
+  bool online = (WiFi.status() == WL_CONNECTED);
+  String s = String("{\"mode\":\"") + (portalMode ? "ap" : "sta") + "\"";
+  s += ",\"ssid\":\"" + jsonEsc(online ? WiFi.SSID() : String("")) + "\"";
+  s += ",\"ip\":\"" + (online ? WiFi.localIP().toString() : String("")) + "\"";
+  s += ",\"city\":\"" + jsonEsc(cfgWeatherCity()) + "\"";
+  s += ",\"lat\":\"" + cfgWeatherLat() + "\",\"lon\":\"" + cfgWeatherLon() + "\"";
+  s += ",\"uid\":\"" + jsonEsc(cfgBemfaUid()) + "\",\"topic\":\"" + jsonEsc(cfgBemfaTopic()) + "\"}";
   server->send(200, "application/json", s);
+}
+
+// 校验经纬度文本
+static bool coordOk(const String& v, double lim){
+  if(!v.length()) return false;
+  char* end = nullptr;
+  double d = strtod(v.c_str(), &end);
+  if(end == v.c_str() || *end != 0) return false;
+  return d >= -lim && d <= lim;
+}
+
+// 保存天气地区
+static void handleWeather(){
+  String lat = server->arg("lat");   lat.trim();
+  String lon = server->arg("lon");   lon.trim();
+  String city = server->arg("city"); city.trim();
+  if(!coordOk(lat, 90) || !coordOk(lon, 180)){
+    server->send(200, "text/html", "<meta charset='utf-8'>经纬度格式不正确，请重新填写<br><a href='/'>返回</a>");
+    return;
+  }
+  if(!city.length()) city = lat + "," + lon;
+  settingsSetWeather(lat, lon, city);
+  weatherRefreshNow();
+  Serial.println("地区已更新: " + city + " (" + lat + "," + lon + ")");
+  server->send(200, "text/html", "<meta charset='utf-8'>地区已保存：" + city + " (" + lat + ", " + lon + ")<br>天气将在几秒内刷新<br><a href='/'>返回</a>");
+}
+
+// 保存巴法云UID/主题并重连
+static void handleBemfa(){
+  String uid = server->arg("uid");     uid.trim();
+  String topic = server->arg("topic"); topic.trim();
+  settingsSetBemfa(uid, topic);
+  memoReloadConfig();
+  bool ok = uid.length() && topic.length();
+  Serial.println(ok ? ("巴法云配置已更新: " + topic) : String("巴法云配置已清空"));
+  server->send(200, "text/html", String("<meta charset='utf-8'>") +
+    (ok ? "已保存，正在重新连接巴法云..." : "已清空巴法云配置，推送功能暂停") +
+    "<br><a href='/'>返回</a>");
 }
 
 // 保存新凭证并重启
@@ -135,6 +269,8 @@ static void registerRoutes(){
   server->on("/scan", handleScan);
   server->on("/status", handleStatus);
   server->on("/save", HTTP_POST, handleSave);
+  server->on("/weather", HTTP_POST, handleWeather);
+  server->on("/bemfa", HTTP_POST, handleBemfa);
 }
 
 static void startPortal(){

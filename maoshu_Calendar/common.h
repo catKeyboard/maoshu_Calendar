@@ -19,9 +19,10 @@
 #define BEMFA_TOPIC "yourTopic"                          // 巴法云主题名(开源占位符，使用前替换为你自己的)
 
 // ===== 天气(Open-Meteo免费API，无需密钥) =====
-// 坐标改成你所在城市的经纬度(保留两位小数即可)
+// 坐标改成你所在城市的经纬度(保留两位小数即可)；联网后也可在设备配置网页里改
 #define WEATHER_LAT "25.61"   // 纬度(云南大理)
 #define WEATHER_LON "100.27"  // 经度(云南大理)
+#define WEATHER_CITY "云南大理"  // 地区名称(仅用于网页显示)
 
 // ===== 配网热点 =====
 #define AP_SSID "maoshu_Calendar"
