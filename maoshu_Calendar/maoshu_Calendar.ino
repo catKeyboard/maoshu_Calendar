@@ -66,7 +66,7 @@ static void onLongPress(){
 void setup(){
   Serial.begin(115200);
   tftInit();
-  Serial.println("maoshu_Calendar 启动");
+  Serial.println(String("maoshu_Calendar ") + FW_VERSION + " 启动");
   calInit();
   settingsBegin(); // 读取NVS中的天气地区/巴法云/番茄钟配置
   netBegin();    // WiFi/NTP(无凭证或失败进入配网模式)

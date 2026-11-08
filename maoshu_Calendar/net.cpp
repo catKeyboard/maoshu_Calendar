@@ -94,6 +94,8 @@ a{color:#1E90FF;font-size:.9rem}
 </form>
 <div class='tip' id='bcur'></div>
 
+<div class='tip' id='ver' style='text-align:center;margin-top:14px'></div>
+
 <script>
 var REG=[["北京",[["北京",39.90,116.41]]],["天津",[["天津",39.13,117.20]]],["上海",[["上海",31.23,121.47]]],["重庆",[["重庆",29.56,106.55]]],
 ["河北",[["石家庄",38.04,114.51],["唐山",39.63,118.18],["保定",38.87,115.46],["邯郸",36.63,114.54],["秦皇岛",39.94,119.60]]],
@@ -156,6 +158,7 @@ fetch('/status').then(function(r){return r.json()}).then(function(s){
   document.getElementById('uid').value=s.uid;
   document.getElementById('topic').value=s.topic;
   document.getElementById('bcur').textContent=s.uid?'已配置，设备会自动重连巴法云':'尚未配置';
+  document.getElementById('ver').textContent='maoshu_Calendar 固件 '+s.ver;
   document.getElementById('pFocus').value=s.pFocus;
   document.getElementById('pShort').value=s.pShort;
   document.getElementById('pLong').value=s.pLong;
@@ -226,7 +229,8 @@ static void handleStatus(){
   s += ",\"lat\":\"" + cfgWeatherLat() + "\",\"lon\":\"" + cfgWeatherLon() + "\"";
   s += ",\"uid\":\"" + jsonEsc(cfgBemfaUid()) + "\",\"topic\":\"" + jsonEsc(cfgBemfaTopic()) + "\"";
   s += ",\"pFocus\":" + String(cfgPomoFocus()) + ",\"pShort\":" + String(cfgPomoShort());
-  s += ",\"pLong\":" + String(cfgPomoLong()) + ",\"pCycle\":" + String(cfgPomoCycle()) + "}";
+  s += ",\"pLong\":" + String(cfgPomoLong()) + ",\"pCycle\":" + String(cfgPomoCycle());
+  s += ",\"ver\":\"" FW_VERSION "\"}";
   server->send(200, "application/json", s);
 }
 
