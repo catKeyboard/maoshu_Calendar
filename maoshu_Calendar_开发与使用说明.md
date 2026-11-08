@@ -10,7 +10,7 @@
 | 物料 | 规格/说明 |
 |---|---|
 | 主控板 | 安信可 ESP32-C3 Core 板（USB Type-C，USB-Serial-JTAG，4MB Flash） |
-| 屏幕 | 2.4 寸 ST7789 240×320 IPS，**10PIN SPI 串口屏**（FPC 插接款，购自淘宝"unvision"，标注"适配 DuDu 时钟"） |
+| 屏幕 | 2.4 寸 ST7789 240×320 IPS，**10PIN SPI 串口屏**（FPC 插接款） |
 | FPC 转接板 | 10PIN FPC → 2×5 排针（随屏购买，板上有 0R0 电阻与跳线为出厂配置，勿动） |
 | 按键 | 轻触开关 1 个（复用板载 BOOT 键亦可，本机外接至 GPIO8） |
 | 连接线 | 杜邦线若干 |
@@ -71,7 +71,7 @@
 ```powershell
 & "C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe" compile `
   --fqbn "esp32:esp32:esp32c3:PartitionScheme=huge_app,FlashFreq=40,FlashMode=dio,CDCOnBoot=cdc" `
-  --build-path "$env:TEMP\duducal_build" `
+  --build-path "$env:TEMP\maoshu_build" `
   "c:\Users\Administrator\Desktop\my-demo2\DuduClock_2.0\maoshu_Calendar"
 ```
 
