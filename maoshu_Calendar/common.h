@@ -15,7 +15,7 @@
 // ===== 巴法云推送(备忘录) =====
 // 手机端：微信搜索"巴法云"小程序，绑定账号后选择主题发送消息
 // 电脑端：登录 https://bemfa.com 网页控制台推送
-#define BEMFA_UID   "youUID"   // 巴法云私钥UID
+#define BEMFA_UID   "youUID"                             // 巴法云私钥UID(开源占位符，使用前替换为你自己的)
 #define BEMFA_TOPIC "yourTopic"                              // 巴法云主题名
 
 // ===== 天气(Open-Meteo免费API，无需密钥) =====

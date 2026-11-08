@@ -149,7 +149,7 @@ maoshu_Calendar/
 **常用配置都在 `common.h`**：
 
 - `WEATHER_LAT / WEATHER_LON`：天气坐标（当前为云南大理 25.61, 100.27）
-- `BEMFA_UID / BEMFA_TOPIC`：巴法云私钥与主题（当前 `yourTopic`）
+- `BEMFA_UID / BEMFA_TOPIC`：巴法云私钥与主题（源码中 UID 为占位符 `youUID`，需换成自己的；主题当前 `yourTopic`）
 - `AP_SSID / AP_PASS`：配网热点名（当前 maoshu_Calendar / 12345678）
 - `BUTTON`：按键引脚（当前 GPIO8）
 
@@ -202,6 +202,8 @@ maoshu_Calendar/
 2. 页面上"**私钥**"一栏就是你的 UID（32 位十六进制字符串）
 3. 把这个 UID 填入固件 `common.h` 的 `BEMFA_UID`（设备就是用它作为 MQTT 的 clientId 登录，无需用户名密码）
 
+> ⚠️ 本仓库为开源版本，`common.h` 中的 `BEMFA_UID` 已替换为占位符 **`"youUID"`**，`firmware/` 下的预编译 bin 也是用该占位符编译的。不替换成自己的私钥直接烧录，设备无法连接巴法云、收不到推送。
+
 **第 3 步：创建/确认主题**
 1. 在控制台点击"**添加主题**"（或直接在发送框输入主题名）
 2. 主题名设为 **yourTopic**（须与固件 `common.h` 的 `BEMFA_TOPIC` 完全一致，区分大小写）
@@ -209,6 +211,7 @@ maoshu_Calendar/
 
 **第 4 步：重新编译烧录**
 - 首次配置或更换过 UID/主题后，改完 `common.h` 需重新编译烧录一次（按第三节步骤）
+- 使用仓库内 `firmware/` 的现成 bin 时，务必先确认已按自己的 UID 重新编译过；占位符版本只用于演示界面
 
 **第 5 步：推送消息**
 - **小程序**：巴法云控制台 → 选择主题 yourTopic → 输入文字 → 发送
