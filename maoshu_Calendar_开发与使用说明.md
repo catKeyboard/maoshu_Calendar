@@ -148,7 +148,7 @@ maoshu_Calendar/
 ├── net.cpp/.h         WiFi连接 + AP配网(192.168.4.1) + NTP校时 + 配置网页
 ├── settings.cpp/.h    运行期配置(NVS)：天气地区、巴法云UID/主题、番茄钟时长、壁纸开关/套号
 ├── tftUtil.cpp/.h     屏幕基座 + 日/夜主题引擎(7:00-19:00自动切换)
-└── font/memo_font_16.h  16×16中文点阵字库(1141字，Unicode排序二分查找)
+└── font/memo_font_16.h  16×16中文点阵字库(3778字，含GB2312一级常用字，Unicode排序二分查找)
 
 tools/
 └── wallpaper_convert.py  电脑端壁纸转换小程序：图片 → wallpaper_data.h
