@@ -22,6 +22,10 @@ int memoCount = 0;               // 当前备忘录条数
 String lastPushText;             // 最后处理的一条云端消息，用于过滤巴法云保留消息
 int memoPageIdx = 0;             // 当前显示的页码
 int memoPages = 1;               // 总页数
+// 长按清空确认状态(第一次长按只提示，第二次长按才执行，单击或8秒超时取消)
+static bool clearConfirm = false;
+static unsigned long clearConfirmAt = 0;
+static void drawClearConfirm();
 
 WiFiClient memoClient;
 PubSubClient mqtt(memoClient);
@@ -236,6 +240,7 @@ void memoCloudLoop(){
 }
 // 新增一条备忘录(巴法云推送与局域网提交共用此路径)
 void memoAddText(String txt, bool fromCloud){
+  clearConfirm = false;   // 新内容到达时取消待确认的清空操作
   txt.replace("\r", "");
   txt.trim();
   if(txt.length() == 0) return;
@@ -265,10 +270,21 @@ void memoAddText(String txt, bool fromCloud){
 }
 // 清空全部备忘录(长按触发，云端保留消息也不会再回灌)
 void memoClearAll(){
+  clearConfirm = false;
   memoCount = 0;
-  memoSaveToNVS();
+  for(int i = 0; i < MEMO_MAX_COUNT; i++) memoList[i] = "";
+  // 从 NVS 中真正删除条目键与计数键，避免只是内存清空
+  memoPrefs.begin("memo", false);
+  for(int i = 0; i < MEMO_MAX_COUNT; i++){
+    memoPrefs.remove(("m" + String(i)).c_str());
+  }
+  memoPrefs.remove("cnt");
+  memoPrefs.end();
+  // 保留 lastPush（去重标记，不是备忘录条目）：防止巴法云保留消息在重连/重启后把已清空的内容回灌
   memoPageIdx = 0;
+  memoPages = 1;
   drawMemoPage();
+  Serial.println("备忘录已清空(NVS m0~m9/cnt 已删除)");
 }
 //////////////////////////////////////////////
 
@@ -377,6 +393,7 @@ void drawMemoPage(){
   }
   tft.drawFastHLine(0, 44, 320, penColor);
   drawMemoContent();
+  if(clearConfirm) drawClearConfirm();   // 整页重绘时保持确认提示
 }
 // 翻到下一页
 void memoNextPage(){
@@ -387,5 +404,38 @@ void memoNextPage(){
 // 是否已显示最后一页(用于单击进入番茄页)
 bool memoAtLastPage(){
   return memoPageIdx >= memoPages - 1;
+}
+//////////////////////////////////////////////
+
+///////////////// 清空确认区域 /////////////////
+#define MEMO_CLEAR_CONFIRM_MS 8000UL   // 确认提示8秒内未再长按则自动取消
+// 屏上确认框(覆盖在备忘录内容区，提示第二次长按才执行)
+static void drawClearConfirm(){
+  clk.setColorDepth(8);
+  clk.createSprite(304, 64);
+  clk.fillSprite(0x1907);   // 固定深色底，避免昼夜主题对比度问题
+  clk.drawRect(0, 0, 304, 64, 0xFD20);
+  drawMemoString(clk, (304 - memoTextWidth("长按确认清空备忘录？")) / 2, 10, "长按确认清空备忘录？", 0xFD20);
+  drawMemoString(clk, (304 - memoTextWidth("再长按一次执行，单击取消")) / 2, 34, "再长按一次执行，单击取消", 0xFFFF);
+  clk.pushSprite(8, 96);
+  clk.deleteSprite();
+}
+void memoClearConfirmStart(){
+  clearConfirm = true;
+  clearConfirmAt = millis();
+  drawClearConfirm();
+}
+bool memoClearConfirmActive(){
+  return clearConfirm;
+}
+void memoClearConfirmCancel(){
+  if(!clearConfirm) return;
+  clearConfirm = false;
+  drawMemoPage();
+}
+void memoClearConfirmLoop(){
+  if(clearConfirm && millis() - clearConfirmAt >= MEMO_CLEAR_CONFIRM_MS){
+    memoClearConfirmCancel();
+  }
 }
 //////////////////////////////////////////////

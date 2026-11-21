@@ -39,6 +39,7 @@ static int lastMin = -1;
 static void onClick(){
   if(alarmRinging()){ alarmStop(); return; }   // 闹钟响时任意按键停止，不切页
   if(calBootInfoActive()){ calBootInfoDismiss(); return; }   // 首次操作：关掉启动信息页
+  if(memoClearConfirmActive()){ memoClearConfirmCancel(); return; }   // 清空确认中：单击取消
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_MEMO;
     drawMemoPage();
@@ -63,6 +64,7 @@ static void onClick(){
 static void onDoubleClick(){
   if(alarmRinging()){ alarmStop(); return; }
   if(calBootInfoActive()){ calBootInfoDismiss(); return; }
+  if(memoClearConfirmActive()){ memoClearConfirmCancel(); return; }   // 清空确认中：取消
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_WEATHER;
     drawWeatherPage();
@@ -80,6 +82,7 @@ static void onDoubleClick(){
 static void onMultiClick(){
   if(alarmRinging()){ alarmStop(); return; }
   if(calBootInfoActive()){ calBootInfoDismiss(); return; }
+  if(memoClearConfirmActive()){ memoClearConfirmCancel(); return; }   // 清空确认中：取消
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_WALL;
     drawWallPage();
@@ -87,12 +90,13 @@ static void onMultiClick(){
     onDoubleClick();
   }
 }
-// 长按3秒：备忘录清空全部；番茄/壁纸/天气回日历
+// 长按3秒：备忘录需二次长按确认清空；番茄/壁纸/天气回日历
 static void onLongPress(){
   if(alarmRinging()){ alarmStop(); return; }
   if(calBootInfoActive()){ calBootInfoDismiss(); return; }
   if(currentPage == PAGE_MEMO){
-    memoClearAll();
+    if(memoClearConfirmActive()) memoClearAll();   // 第二次长按才真正清空
+    else memoClearConfirmStart();                  // 第一次长按只显示确认提示
   } else if(currentPage == PAGE_POMO || currentPage == PAGE_WALL || currentPage == PAGE_WEATHER){
     currentPage = PAGE_CAL;
     drawCalPage();
@@ -128,6 +132,7 @@ void loop(){
   button.tick();
   alarmLoop();    // 闹钟判定(非阻塞，按分钟触发，60秒自动停)
   calBootInfoLoop(); // 启动信息页到时自动切回桌面
+  memoClearConfirmLoop(); // 清空确认提示8秒未执行则自动取消
   memoCloudLoop();
   netLoop();
   weatherLoop();

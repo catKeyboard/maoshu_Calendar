@@ -14,7 +14,11 @@ void memoNextPage(void);     // 手动翻到下一页
 bool memoAtLastPage(void);   // 是否已显示最后一页(末页单击进番茄页)
 void drawMemoPage(void);     // 绘制整个备忘录页面
 void drawMemoContent(void);  // 只重绘内容区（翻页时用）
-void memoClearAll(void);     // 清空全部备忘录
+void memoClearAll(void);     // 清空全部备忘录(删除NVS条目，保留云端去重标记)
+void memoClearConfirmStart(void);  // 长按第一次：屏上显示清空确认提示
+bool memoClearConfirmActive(void);  // 是否处于清空确认状态
+void memoClearConfirmCancel(void);  // 单击取消：清除提示并重绘备忘录页
+void memoClearConfirmLoop(void);    // 主循环调用：确认提示8秒未执行则自动取消
 void memoAddText(String txt, bool fromCloud = true); // 新增一条(巴法云/局域网同一路径)
 void memoReloadConfig(void); // 配置页改了巴法云参数后调用，重新连接
 bool memoConfigured(void);   // 是否已配置巴法云推送

@@ -32,11 +32,8 @@ static void drawPortalScreen(){
   clk.deleteSprite();
 }
 
-// 配置页面(网络/天气地区/巴法云，配网与换网共用)
-static const char CONFIG_HTML[] PROGMEM = R"rawliteral(
-<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>maoshu_Calendar 配置</title>
-<style>
+// 两页共用样式(单独路由 /css，避免两页各存一份)
+static const char PAGE_CSS[] PROGMEM = R"rawliteral(
 body{font-family:sans-serif;max-width:460px;margin:0 auto;padding:10px;font-size:1rem}
 h3{margin:16px 0 8px;font-size:1.05rem;border-left:4px solid #1E90FF;padding-left:8px}
 input,select{width:100%;height:38px;font-size:.95rem;margin:4px 0;padding:0 6px;box-sizing:border-box}
@@ -49,7 +46,21 @@ button{width:100%;height:40px;font-size:1rem;background:#1E90FF;color:#fff;borde
 input[type=checkbox]{width:26px;height:26px;margin:0;padding:0;flex:0 0 26px}
 a{color:#1E90FF;font-size:.9rem}
 .tip{color:#888;font-size:.85rem;margin:2px 0 6px}
-</style></head><body>
+nav{display:flex;gap:8px;margin:0 0 8px}
+nav a{flex:1;text-align:center;padding:9px 0;border-radius:6px;background:#eef4fb;text-decoration:none;font-size:.95rem}
+nav a.on{background:#1E90FF;color:#fff;font-weight:600}
+textarea{width:100%;height:96px;font-size:1rem;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:6px;resize:vertical}
+.msg{display:none;padding:8px;border-radius:6px;margin:0 0 8px;font-size:.95rem}
+.msg.ok{background:#e8f5e9;color:#1b5e20}
+.msg.err{background:#ffebee;color:#b71c1c}
+)rawliteral";
+
+// 配置页(系统)：网络 / 天气地区 / 巴法云推送
+static const char SYS_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>maoshu_Calendar 系统设置</title>
+<link rel='stylesheet' href='/css'></head><body>
+<nav><a href='/'>常用设置</a><a href='/sys' class='on'>系统设置</a></nav>
 
 <h3>网络</h3>
 <div id='cur'>正在获取状态…</div>
@@ -74,43 +85,6 @@ a{color:#1E90FF;font-size:.9rem}
 </form>
 <div class='tip'>选择省市会自动填好经纬度，也可直接手填(保留两位小数)</div>
 
-<h3>番茄钟</h3>
-<div class='tip'>单位分钟；保存后设备端按新时长重置当前阶段</div>
-<form action='/pomo' method='post'>
-<div class='row'>
-<input id='pFocus' name='pFocus' type='number' min='1' max='120' placeholder='专注分钟'>
-<input id='pShort' name='pShort' type='number' min='1' max='60' placeholder='短休分钟'>
-</div>
-<div class='row'>
-<input id='pLong' name='pLong' type='number' min='1' max='60' placeholder='长休分钟'>
-<input id='pCycle' name='pCycle' type='number' min='1' max='12' placeholder='几个专注进长休'>
-</div>
-<button type='submit'>保存番茄钟设置</button>
-</form>
-
-<h3>闹钟</h3>
-<div class='tip'>最多 4 组；到点响 60 秒，按任意键停止；"仅一次"的响过自动失效</div>
-<form action='/alarm' method='post'>
-<div class='row' style='align-items:center'>
-<input type='checkbox' id='on0' name='on0'><input type='time' id='t0' name='t0' style='flex:1'>
-<select id='rep0' name='rep0' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
-</div>
-<div class='row' style='align-items:center'>
-<input type='checkbox' id='on1' name='on1'><input type='time' id='t1' name='t1' style='flex:1'>
-<select id='rep1' name='rep1' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
-</div>
-<div class='row' style='align-items:center'>
-<input type='checkbox' id='on2' name='on2'><input type='time' id='t2' name='t2' style='flex:1'>
-<select id='rep2' name='rep2' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
-</div>
-<div class='row' style='align-items:center'>
-<input type='checkbox' id='on3' name='on3'><input type='time' id='t3' name='t3' style='flex:1'>
-<select id='rep3' name='rep3' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
-</div>
-<button type='submit'>保存闹钟</button>
-</form>
-<div class='tip' id='acur'></div>
-
 <h3>巴法云推送</h3>
 <div class='tip'>UID=巴法云控制台32位私钥，主题名与小程序的发送主题一致</div>
 <form action='/bemfa' method='post'>
@@ -119,10 +93,6 @@ a{color:#1E90FF;font-size:.9rem}
 <button type='submit'>保存并连接</button>
 </form>
 <div class='tip' id='bcur'></div>
-
-<h3>局域网备忘录</h3>
-<div class='tip'>同一 WiFi 下的手机/电脑可直接填写内容推送到设备，无需巴法云</div>
-<p><a href='/memo'>打开备忘录推送页 &rarr;</a></p>
 
 <div class='tip' id='ver' style='text-align:center;margin-top:14px'></div>
 
@@ -189,21 +159,6 @@ fetch('/status').then(function(r){return r.json()}).then(function(s){
   document.getElementById('topic').value=s.topic;
   document.getElementById('bcur').textContent=s.uid?'已配置，设备会自动重连巴法云':'尚未配置';
   document.getElementById('ver').textContent='maoshu_Calendar 固件 '+s.ver+' · 设备 '+s.id;
-  document.getElementById('pFocus').value=s.pFocus;
-  document.getElementById('pShort').value=s.pShort;
-  document.getElementById('pLong').value=s.pLong;
-  document.getElementById('pCycle').value=s.pCycle;
-  if(s.alarm){
-    var st='';
-    for(var i=0;i<4;i++){
-      var a=s.alarm[i];
-      document.getElementById('on'+i).checked=a.on;
-      document.getElementById('t'+i).value=a.t;
-      document.getElementById('rep'+i).value=a.once?'o':'d';
-      if(a.on) st+=(st?'，':'')+a.t+(a.once?(a.fired?'(已响过，应用后重新生效)':'(仅一次)'):'(每天)');
-    }
-    document.getElementById('acur').textContent=st?'当前已启用：'+st:'当前没有启用的闹钟';
-  }
 }).catch(function(){});
 
 function loadScan(){
@@ -232,30 +187,63 @@ loadScan();
 </body></html>
 )rawliteral";
 
-// 局域网备忘录推送页(手机浏览器打开，与巴法云走同一入队/存储路径)
-// __MAXB__ 在发送时替换为 MEMO_MAX_BYTES，避免页面与后端上限不一致
-static const char MEMO_HTML[] PROGMEM = R"rawliteral(
+// 配置页(常用)：番茄钟 / 闹钟 / 局域网备忘录
+static const char CONFIG_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>maoshu_Calendar 备忘录</title>
-<style>
-body{font-family:sans-serif;max-width:460px;margin:0 auto;padding:10px;font-size:1rem}
-h3{margin:16px 0 8px;font-size:1.05rem;border-left:4px solid #1E90FF;padding-left:8px}
-textarea{width:100%;height:130px;font-size:1rem;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:6px;resize:vertical}
-button{width:100%;height:40px;font-size:1rem;background:#1E90FF;color:#fff;border:0;border-radius:6px;margin-top:8px}
-a{color:#1E90FF;font-size:.9rem}
-.tip{color:#888;font-size:.85rem;margin:2px 0 6px}
-</style></head><body>
+<title>maoshu_Calendar 常用设置</title>
+<link rel='stylesheet' href='/css'></head><body>
+<nav><a href='/' class='on'>常用设置</a><a href='/sys'>系统设置</a></nav>
+<div id='msg' class='msg'></div>
+
+<h3>番茄钟</h3>
+<div class='tip'>单位分钟；保存后设备端按新时长重置当前阶段</div>
+<form action='/pomo' method='post'>
+<div class='row'>
+<input id='pFocus' name='pFocus' type='number' min='1' max='120' placeholder='专注分钟'>
+<input id='pShort' name='pShort' type='number' min='1' max='60' placeholder='短休分钟'>
+</div>
+<div class='row'>
+<input id='pLong' name='pLong' type='number' min='1' max='60' placeholder='长休分钟'>
+<input id='pCycle' name='pCycle' type='number' min='1' max='12' placeholder='几个专注进长休'>
+</div>
+<button type='submit'>保存番茄钟设置</button>
+</form>
+
+<h3>闹钟</h3>
+<div class='tip'>最多 4 组；到点响 60 秒，按任意键停止；"仅一次"的响过自动失效</div>
+<form action='/alarm' method='post'>
+<div class='row' style='align-items:center'>
+<input type='checkbox' id='on0' name='on0'><input type='time' id='t0' name='t0' style='flex:1'>
+<select id='rep0' name='rep0' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
+</div>
+<div class='row' style='align-items:center'>
+<input type='checkbox' id='on1' name='on1'><input type='time' id='t1' name='t1' style='flex:1'>
+<select id='rep1' name='rep1' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
+</div>
+<div class='row' style='align-items:center'>
+<input type='checkbox' id='on2' name='on2'><input type='time' id='t2' name='t2' style='flex:1'>
+<select id='rep2' name='rep2' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
+</div>
+<div class='row' style='align-items:center'>
+<input type='checkbox' id='on3' name='on3'><input type='time' id='t3' name='t3' style='flex:1'>
+<select id='rep3' name='rep3' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
+</div>
+<button type='submit'>保存闹钟</button>
+</form>
+<div class='tip' id='acur'></div>
 
 <h3>局域网备忘录</h3>
-<div class='tip'>提交后保存并自动切到备忘录页(最多10条)；单条上限 __MAXB__ 字节(约 200 个汉字)</div>
+<div class='tip'>同一 WiFi 可直接推送；最多 10 条，单条上限 __MAXB__ 字节</div>
 <form action='/memo' method='post' onsubmit='return chk()'>
 <textarea id='text' name='text' placeholder='输入内容，回车可换行'></textarea>
 <div class='tip' id='cnt'>已用 0/__MAXB__ 字节</div>
 <div class='tip' id='warn' style='color:#F80000;display:none'>已超出 __MAXB__ 字节上限，请删减后再提交</div>
 <button type='submit' id='send'>推送到设备</button>
 </form>
-<div class='tip'>同一局域网内任何能访问本设备的手机/电脑都可打开本页写入，公共网络请勿使用</div>
-<p><a href='/'>&larr; 返回配置页</a></p>
+<form action='/memo/clear' method='post' onsubmit="return confirm('确定清空全部备忘录？只删除备忘录内容，不影响闹钟、番茄钟、天气与巴法云设置。');">
+<button type='submit' class='danger'>清空全部备忘录</button>
+</form>
+<div class='tip'>同网段任何人都可写入，公共网络勿用</div>
 <script>
 var ta=document.getElementById('text'),cnt=document.getElementById('cnt'),warn=document.getElementById('warn'),btn=document.getElementById('send');
 var LIM=__MAXB__;
@@ -271,8 +259,41 @@ function upd(){
 function chk(){ upd(); return bytes()<=LIM; }
 ta.addEventListener('input',upd);
 upd();
+var qs=new URLSearchParams(location.search),mm=qs.get('m');
+if(mm){
+  var box=document.getElementById('msg'),txt='',ok=(mm==='ok'||mm==='cleared');
+  if(mm==='ok') txt='已推送到设备，屏幕已切到备忘录页';
+  else if(mm==='cleared') txt='已清空全部备忘录';
+  else if(mm==='empty') txt='内容不能为空，未推送';
+  else if(mm==='long') txt='内容超长：'+(qs.get('n')||'?')+'/'+LIM+' 字节，请删减后再提交';
+  box.textContent=txt;
+  box.className='msg '+(ok?'ok':'err');
+  box.style.display=txt?'block':'none';
+}
 </script>
 
+<div class='tip' id='ver' style='text-align:center;margin-top:14px'></div>
+
+<script>
+fetch('/status').then(function(r){return r.json()}).then(function(s){
+  document.getElementById('ver').textContent='maoshu_Calendar 固件 '+s.ver+' · 设备 '+s.id;
+  document.getElementById('pFocus').value=s.pFocus;
+  document.getElementById('pShort').value=s.pShort;
+  document.getElementById('pLong').value=s.pLong;
+  document.getElementById('pCycle').value=s.pCycle;
+  if(s.alarm){
+    var st='';
+    for(var i=0;i<4;i++){
+      var a=s.alarm[i];
+      document.getElementById('on'+i).checked=a.on;
+      document.getElementById('t'+i).value=a.t;
+      document.getElementById('rep'+i).value=a.once?'o':'d';
+      if(a.on) st+=(st?'，':'')+a.t+(a.once?(a.fired?'(已响过，应用后重新生效)':'(仅一次)'):'(每天)');
+    }
+    document.getElementById('acur').textContent=st?'当前已启用：'+st:'当前没有启用的闹钟';
+  }
+}).catch(function(){});
+</script>
 </body></html>
 )rawliteral";
 
@@ -336,14 +357,14 @@ static void handleWeather(){
   String lon = server->arg("lon");   lon.trim();
   String city = server->arg("city"); city.trim();
   if(!coordOk(lat, 90) || !coordOk(lon, 180)){
-    server->send(200, "text/html", "<meta charset='utf-8'>经纬度格式不正确，请重新填写<br><a href='/'>返回</a>");
+    server->send(200, "text/html", "<meta charset='utf-8'>经纬度格式不正确，请重新填写<br><a href='/sys'>返回系统设置</a>");
     return;
   }
   if(!city.length()) city = lat + "," + lon;
   settingsSetWeather(lat, lon, city);
   weatherRefreshNow();
   Serial.println("地区已更新: " + city + " (" + lat + "," + lon + ")");
-  server->send(200, "text/html", "<meta charset='utf-8'>地区已保存：" + city + " (" + lat + ", " + lon + ")<br>天气将在几秒内刷新<br><a href='/'>返回</a>");
+  server->send(200, "text/html", "<meta charset='utf-8'>地区已保存：" + city + " (" + lat + ", " + lon + ")<br>天气将在几秒内刷新<br><a href='/sys'>返回系统设置</a>");
 }
 
 // 保存巴法云UID/主题并重连
@@ -356,7 +377,13 @@ static void handleBemfa(){
   Serial.println(ok ? ("巴法云配置已更新: " + topic) : String("巴法云配置已清空"));
   server->send(200, "text/html", String("<meta charset='utf-8'>") +
     (ok ? "已保存，正在重新连接巴法云..." : "已清空巴法云配置，推送功能暂停") +
-    "<br><a href='/'>返回</a>");
+    "<br><a href='/sys'>返回系统设置</a>");
+}
+
+// 303 回配置页并带提示参数(m=ok/empty/long/cleared)，不再使用独立提示页
+static void redirectHome(const String& query){
+  server->sendHeader("Location", String("/") + query, true);
+  server->send(303, "text/plain", "");
 }
 
 // 局域网备忘录：POST 提交内容，与巴法云消息共用入队/存储路径
@@ -364,20 +391,23 @@ static void handleMemoPost(){
   String t = server->arg("text");   // 表单为 UTF-8 urlencoded，arg() 还原为原始 UTF-8 字节
   t.trim();
   if(!t.length()){
-    server->send(200, "text/html", "<meta charset='utf-8'>内容不能为空<br><a href='/memo'>返回</a>");
+    redirectHome("?m=empty");
     return;
   }
   if(t.length() > MEMO_MAX_BYTES){   // 后端兜底：不静默截断，直接拒绝
-    server->send(200, "text/html",
-      String("<meta charset='utf-8'>内容超长：当前 ") + t.length() + " 字节，上限 " +
-      MEMO_MAX_BYTES + " 字节，请删减后重试<br><a href='/memo'>返回</a>");
+    redirectHome("?m=long&n=" + String(t.length()));
     return;
   }
   memoAddText(t, false);            // false = 本机提交，不做巴法云保留消息去重
   Serial.println("局域网推送备忘录, " + String(t.length()) + " 字节");
-  server->send(200, "text/html",
-    "<meta charset='utf-8'>已保存到设备，屏幕已切到备忘录页<br>"
-    "<a href='/memo'>继续推送</a> · <a href='/'>配置页</a>");
+  redirectHome("?m=ok");
+}
+
+// 局域网备忘录：清空全部条目(仅删除 memo 命名空间，不动闹钟/番茄钟/天气/巴法云设置)
+static void handleMemoClear(){
+  memoClearAll();
+  Serial.println("局域网请求清空备忘录");
+  redirectHome("?m=cleared");
 }
 
 // 保存番茄钟时长(分钟)并重置当前阶段
@@ -387,14 +417,14 @@ static void handlePomo(){
   int longMin = server->arg("pLong").toInt();
   int cycle = server->arg("pCycle").toInt();
   if(focus < 1 || shortMin < 1 || longMin < 1 || cycle < 1){
-    server->send(200, "text/html", "<meta charset='utf-8'>请填写大于0的数值<br><a href='/'>返回</a>");
+    server->send(200, "text/html", "<meta charset='utf-8'>请填写大于0的数值<br><a href='/'>返回常用设置</a>");
     return;
   }
   settingsSetPomo(focus, shortMin, longMin, cycle);
   pomoApplyConfig();
   Serial.println("番茄钟设置: 专注" + String(focus) + " 短休" + String(shortMin) +
                  " 长休" + String(longMin) + " 每" + String(cycle) + "个进长休");
-  server->send(200, "text/html", "<meta charset='utf-8'>番茄钟设置已保存<br><a href='/'>返回</a>");
+  server->send(200, "text/html", "<meta charset='utf-8'>番茄钟设置已保存<br><a href='/'>返回常用设置</a>");
 }
 
 // 保存 4 组闹钟(启用/时间/每天或仅一次)
@@ -417,7 +447,7 @@ static void handleAlarm(){
   }
   Serial.println(String("闹钟设置已保存，启用 ") + enabled + " 组");
   server->send(200, "text/html", String("<meta charset='utf-8'>闹钟已保存(") + enabled +
-               " 组启用)<br><a href='/'>返回</a>");
+               " 组启用)<br><a href='/'>返回常用设置</a>");
 }
 
 // 保存新凭证并重启
@@ -438,7 +468,13 @@ static void handleSave(){
 }
 
 static void registerRoutes(){
-  server->on("/", [](){ server->send(200, "text/html", CONFIG_HTML); });
+  server->on("/", [](){
+    String html = CONFIG_HTML;
+    html.replace("__MAXB__", String(MEMO_MAX_BYTES));
+    server->send(200, "text/html", html);
+  });
+  server->on("/sys", [](){ server->send(200, "text/html", SYS_HTML); });
+  server->on("/css", [](){ server->send(200, "text/css", PAGE_CSS); });
   server->on("/scan", handleScan);
   server->on("/status", handleStatus);
   server->on("/save", HTTP_POST, handleSave);
@@ -446,12 +482,12 @@ static void registerRoutes(){
   server->on("/pomo", HTTP_POST, handlePomo);
   server->on("/alarm", HTTP_POST, handleAlarm);
   server->on("/bemfa", HTTP_POST, handleBemfa);
-  server->on("/memo", HTTP_GET, [](){
-    String html = MEMO_HTML;
-    html.replace("__MAXB__", String(MEMO_MAX_BYTES));
-    server->send(200, "text/html", html);
+  server->on("/memo", HTTP_GET, [](){   // 旧地址统一回到第一页，表单只在 / 维护一份
+    server->sendHeader("Location", "/", true);
+    server->send(302, "text/plain", "");
   });
   server->on("/memo", HTTP_POST, handleMemoPost);
+  server->on("/memo/clear", HTTP_POST, handleMemoClear);
 }
 
 static void startPortal(){
