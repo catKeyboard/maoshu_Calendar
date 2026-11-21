@@ -5,11 +5,141 @@
 
 ---
 
+## 交接状态（截至 2026-11-22）
+
+> 给接手的人：先看这一节，再按日期往下翻历史。当前固件 **V01.16**，仓库 `catKeyboard/maoshu_Calendar`。
+
+### 1. 能力清单与源码地图
+
+**现在能做什么**
+- 桌面页：月历 + 农历/黄历（宜/忌）+ 大时钟 + 今日天气 + 底部 IP（小号 ASCII）。
+- 天气页：本周 7 天预报（Open-Meteo，失败自动退避重试）。
+- 备忘录页：巴法云 MQTT 推送 + 局域网网页推送，最近 10 条、单条 600 字节，NVS 断电保留；按键翻页、长按两次确认清空。
+- 番茄钟页：专注/短休/长休循环，网页可改时长，阶段结束有蜂鸣提示音。
+- 闹钟：最多 4 组，每天/仅一次，响 60 秒，间歇 300 ms/250 ms，任意键停止。
+- 壁纸页：5 套内置壁纸（仅白天版），单击换套、双击启停。
+- 配置网页两页：`/` 常用设置（番茄钟→闹钟→局域网备忘录），`/sys` 系统设置（网络→天气→巴法云）；启动信息页显示版本与 IP 约 10 秒。
+- 字库：16×16 宋体 3,834 字（GB2312 一级 + 常用补充）+ 常用符号。
+
+**改 X 去哪个文件**
+
+| 文件 | 职责 |
+|---|---|
+| `maoshu_Calendar.ino` | 页面状态机、单按键（OneButton）单击/双击/长按/三击、主循环顺序、启动初始化 |
+| `common.h` | 版本号 `FW_VERSION`、引脚（屏/按键 GPIO8/蜂鸣器 GPIO6）、页面枚举与公共常量 |
+| `cal.cpp/.h` | 月历、农历/宜忌、桌面布局、启动信息页、桌面底部 IP 小字 |
+| `weather.cpp/.h` | Open-Meteo 请求、8 秒超时、失败退避（60→…→1800 秒）、天气页绘制 |
+| `memo.cpp/.h` | 备忘录 NVS、巴法云 MQTT、局域网入库同一路径、分页/清空确认、点阵文字绘制接口 |
+| `pomodoro.cpp/.h` | 番茄钟计时与阶段切换、结束提示音（`beepFocusDone`/`beepRestDone`） |
+| `alarm.cpp/.h` | 4 组闹钟、uint32 打包存 NVS、响铃排队、间歇蜂鸣 |
+| `wallpaper.cpp/.h` | 壁纸套数切换、启用/停用、把 PROGMEM 壁纸写进 sprite |
+| `wallpaper_data.h` | 5 套 RGB565 壁纸数据，每套 320×240 = 153,600 B |
+| `net.cpp/.h` | WiFi 连接/AP 配网、WebServer 路由与两页 HTML、`/memo` 接口、NTP、`/css` |
+| `settings.cpp/.h` | NVS 命名空间 `cfg`（天气/番茄钟/闹钟/巴法云）与 `net`（WiFi）读写 |
+| `tftUtil.cpp/.h` | TFT 初始化、sprite 刷新、主题配色、时间/字符串小工具 |
+| `font/memo_font_16.h` | 3,834 字 16×16 字模 + 码表（升序二分查找）+ 32×32 `memoTitle` 大字块 |
+
+页面切换（单按键）：桌面单击→备忘录、双击→天气、长按→壁纸；备忘录单击翻页（末页进番茄）、双击回桌面；番茄双击重置、长按回桌面；壁纸单击换套、双击启停、长按回桌面；天气单击/长按回桌面。
+
+### 2. 两块板状态
+
+| 板子 | 端口 | 固件 | 当前 IP | 备注 |
+|---|---|---|---|---|
+| 第二块（网页/功能验证常用） | COM12 | V01.16 | 192.168.1.112（曾为 .125） | 2026-11-22 验证时未插，端口号是历史值 |
+| 第一块 | COM11 | V01.16 | 待复位后启动页确认 | 2026-11-22 已烧录并校验，IP 以启动信息页/路由器 DHCP 列表为准 |
+
+- IP 全部由路由器 **DHCP 分配**，重启或租约到期会漂移（.125 → .112 已发生过）。长期使用建议在路由器里**按 MAC 绑定**固定 IP；MAC 可从烧录日志 `MAC: …` 或启动串口日志读到，不要写进源码或文档。
+- 端口号也可能随插拔顺序变化，烧录前先枚举串口确认（`[System.IO.Ports.SerialPort]::GetPortNames()` 或设备管理器），认准 `USB 串行设备 (VID_303A)`。
+
+### 3. 未完成 / 待决事项
+
+- **仓库可见性**：已由用户改为 **public**，2026-11-22 匿名 API 验证为 200、`private:false`、`visibility:public`、`default_branch:main`、`license:MIT`。如需回退 private，只能在 GitHub 网页/Token 操作。
+- **V01.5 标签**：指向字库扩充那次提交（历史重写后为 `eb44b57`），不是当前 HEAD；仅为版本标记，不要误认为当前代码。
+- **字库缺口**：`⟶`(U+27F6)、`⇒`、emoji、CJK 扩展区生僻字仍会显示空心方框（属预期）。再补字走 16 px SimSun 生成、并入 `memo_font_16.h`。
+- **天气接口偶发不可达**：曾出现 DNS/TCP 正常但 HTTP 8 秒无响应（`-11` 读超时）。已有 60→120→240→…→1800 秒退避，成功后 30 分钟；失败保留旧数据。偶发首次取不到属正常。
+- **配置页 Content-Type** 目前是 `text/html`，未带 `charset=utf-8`；页面内有 `<meta charset='utf-8'>`，中文正常，属可选优化。
+- 未做 OTA、未做多按键/触摸、壁纸只有白天版。
+
+### 4. 继续开发操作手册
+
+**编译**（Windows，Arduino IDE 自带 CLI）
+
+```
+& "C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe" compile `
+  --fqbn "esp32:esp32:esp32c3:PartitionScheme=huge_app,FlashFreq=40,FlashMode=dio,CDCOnBoot=cdc" `
+  --build-path "$env:TEMP\dudu_pomo_build" maoshu_Calendar
+```
+
+- app 分区 3,145,728 B；编译结束看 `Sketch uses …` 与 `Global variables …`。
+- 改了 `common.h` 版本号、字库或壁纸数据后必须全量重编（build path 里旧缓存偶尔不刷新，可先删目录）。
+
+**进下载模式**：按住 **BOOT** 不放 → 点一下 **RST** → 松开 BOOT。串口会重新枚举。若 esptool 报 `Wrong boot mode detected (0xc)`，说明没进下载模式，重做一次即可，不要反复盲试。
+
+**烧录**（应用地址固定 0x10000）
+
+```
+esptool --chip esp32c3 --port COMxx --before usb_reset --after hard_reset write_flash -z `
+  --flash_mode dio --flash_freq 40m --flash_size detect `
+  0xe000 firmware\boot_app0.bin `
+  0x0    firmware\maoshu_Calendar.ino.bootloader.bin `
+  0x8000 firmware\maoshu_Calendar.ino.partitions.bin `
+  0x10000 firmware\maoshu_Calendar.ino.bin
+```
+
+- 想烧最新编译产物，把后三个路径换成 `$env:TEMP\dudu_pomo_build\maoshu_Calendar.ino.*.bin`；烧完记得把三个 bin 同步回 `firmware/` 再提交。
+- **RTS 复位对这块板无效**：`--after hard_reset` 不会真正重启，烧完必须**手按 RST** 才会运行新固件。
+
+**分段读回校验**（app >1 MB，整包一次读会断流）
+
+1. 先枚举端口，确认目标板。
+2. 每段单独连接；芯片已在跑应用时 `--before no_reset` 连不上，改用 `--before usb_reset`（每段都加，读回不受影响）。
+3. 分段：`0x0 0x30B0`（bootloader 12,464）、`0x8000 0xC00`（partitions 3,072）、`0xE000 0x2000`（boot_app0 8,192）、app 先读 `0x10000 0x100000`，再读 `0x110000` 起**剩余长度**（app 总长 − 1,048,576）。
+4. 两段按内存顺序拼接成完整 app，分别对源文件与读回文件算 SHA256，并逐字节比较；差异必须为 0。
+
+**抓串口日志**：用任意串口工具（PuTTY / 串口助手 / `[IO.Ports.SerialPort]`）打开目标口，**115200 8N1**；上电或按 RST 即可看到启动横幅、WiFi/天气、巴法云、备忘录等日志。注意烧录时不要同时占用串口。
+
+**查设备 IP**：启动信息页停留约 10 秒；或浏览器访问 `http://<IP>/status`；实在不行看路由器 DHCP 客户端列表。
+
+### 5. 踩坑速查
+
+| 现象 | 原因 / 处理 |
+|---|---|
+| 读回在 1.4–2.2 MB 处 `Packet content transfer stopped` | 整包读超限，改 1 MB + 剩余分段，再拼接比对 |
+| 烧完没反应，仍跑旧固件 | 板子 EN 没接 RTS，`hard_reset` 无效，手按 RST |
+| `Failed to connect: No serial data received`（读回时） | 芯片在跑应用，`--before no_reset` 无效，改用 `--before usb_reset` |
+| `Wrong boot mode detected (0xc)` | 未进下载模式：按住 BOOT → 点 RST → 松 BOOT |
+| 壁纸红蓝互换 | sprite 内部是字节交换格式，写缓冲前要做 `(c>>8)\|(c<<8)` |
+| 网页提交中文变乱码/收不到字段 | 表单必须 UTF-8 且带 `application/x-www-form-urlencoded`；`WebClient`/裸 POST 不带 Content-Type 时 `server->arg()` 解析不到 |
+| 推送 600 字节消息收不到 | MQTT 默认缓冲太小，已设 `setBufferSize(1024)` |
+| 重启后同一条巴法云消息重复入库 | 巴法云会重放保留消息；用 `lastPush` 去重（仅云端生效，局域网不去重） |
+| 天气首次重试等了 120 秒 | 退避顺序写反（先翻倍再当等待）；应“本次用当前阶梯、下次再翻倍”（`waitGap`/`backoff` 分开） |
+| 字库重生成后备忘录大标题没了 | 生成脚本只保留 CJK 段之前内容，会冲掉 `memoTitle` 32×32 块，生成后从 HEAD 补回 |
+| 字库出现两行 `MEMO_CJK_COUNT` | 重生成时 head 已含旧 `#define` 又追加一次；编译器取后值不报错，需核对并删旧行 |
+| 字库缺字显示方框 | 码点不在字库时 `drawMemoChar` 画空心方框；补符号用 SimSun 16 px 并保持码表升序 |
+| git-filter-repo 替换文件不生效 | 替换文件带 BOM 导致匹配失败；用 `UTF8Encoding($false)` 写无 BOM |
+| PowerShell 取标签指向报 `ambiguous argument '+'` | 用 `$ref = $t + '^{}'; git rev-parse --verify $ref` |
+
+### 6. 后续可做与空间预算（V01.16 实测）
+
+- Flash：**1,897,858 / 3,145,728 B（60%）**，剩余 **1,247,870 B（约 1.19 MB，40%）**；RAM 41,564 / 327,680 B（12%），堆余量充足。
+- 构成（`size -A` + `nm -S`）：
+  - `.flash.text` 代码 **768,512 B**；
+  - `.flash.rodata` 常量 **1,058,688 B**，其中壁纸 **768,000 B（约 73%）**、字库 **约 130,356 B（3,834×32 + 码表，约 12%）**、网页 HTML/文案若干；
+  - `.flash.rodata_noload` 16,695 B（NVS 相关，不占 RAM）。
+- 加功能的大致代价：
+  - 新增 1 套壁纸：+153,600 B（可先降为 8-bit 调色板或压缩来省空间，但要改绘制链）；
+  - 新增 1,000 个汉字：+32,000 B 字模 + 2,000 B 码表；
+  - 再拆/扩充配置页：每页十几 KB 量级，可忽略。
+- 不建议直接加 OTA：当前 `huge_app` 无 OTA 槽，需改分区表并牺牲约一半 app 空间；要做先规划双槽与回滚。
+- 可优先考虑的小功能：闹钟贪睡、天气页加降水概率、备忘录按时间排序/删除单条、配置页显示剩余 NVS、局域网推送可选 key。
+
+---
+
 ## 2026-11-22
 
 ### 一、备忘录支持局域网推送（V01.10）
 
-- 复用现有 `WebServer`：`GET /memo` 返回手机表单页，`POST /memo` 读取 `text` 字段，直接调 `memoAddText(t, false)`，与巴法云消息共用同一入库/存储路径（去 `\r`、trim、600 字节截断、满 10 条丢最旧、写 `memo` 命名空间并重绘）。
+- 复用现有 `WebServer`：`GET /memo` 返回手机表单页，`POST /memo` 读取 `text` 字段，直接调 `memoAddText(t, false)`，与巴法云消息共用同一入库/存储路径（去 `\r`、trim、UTF-8 截断（V01.10 为 240 字节，V01.11 起 600 字节）、满 10 条丢最旧、写 `memo` 命名空间并重绘）。
 - `memoAddText(txt, fromCloud)` 增加来源标志：只有云端消息做 `lastPush` 保留消息去重，局域网同文本可以重复提交。
 - 不加登录或 key；页面与 README 均明示“同网段任何人可写，公共网络勿用”。页面与源码不写入真实 UID/主题/SSID。
 
