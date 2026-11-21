@@ -4,6 +4,7 @@
 #include "net.h"
 #include "settings.h"
 #include "pomodoro.h"
+#include "alarm.h"
 #include "font/memo_font_16.h"
 
 // 番茄钟：专注/短休/长休三阶段循环
@@ -167,8 +168,10 @@ static void completePhase(){
   if(phase == POMO_FOCUS){
     focusDone++;
     pendingPhase = (focusDone % cycleCount() == 0) ? POMO_LONG : POMO_SHORT;
+    beepFocusDone();               // 专注结束：两声短促
   } else {
     pendingPhase = POMO_FOCUS;
+    beepRestDone();                // 短休/长休结束：一声长
   }
   finishing = true;
   running = false;

@@ -28,6 +28,7 @@
 #include "settings.h"
 #include "pomodoro.h"
 #include "wallpaper.h"
+#include "alarm.h"
 
 // 页面状态
 enum CurrentPage currentPage = PAGE_CAL;
@@ -36,6 +37,7 @@ static int lastMin = -1;
 
 // 单击：桌面→备忘录；备忘录翻页(末页再单击进番茄)；壁纸换套；天气/番茄按页面处理
 static void onClick(){
+  if(alarmRinging()){ alarmStop(); return; }   // 闹钟响时任意按键停止，不切页
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_MEMO;
     drawMemoPage();
@@ -58,6 +60,7 @@ static void onClick(){
 }
 // 双击：桌面→天气；壁纸启用/停用；番茄重置；备忘录等返回桌面
 static void onDoubleClick(){
+  if(alarmRinging()){ alarmStop(); return; }
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_WEATHER;
     drawWeatherPage();
@@ -73,6 +76,7 @@ static void onDoubleClick(){
 }
 // 三击及以上：桌面→壁纸；其他页面等同双击
 static void onMultiClick(){
+  if(alarmRinging()){ alarmStop(); return; }
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_WALL;
     drawWallPage();
@@ -82,6 +86,7 @@ static void onMultiClick(){
 }
 // 长按3秒：备忘录清空全部；番茄/壁纸/天气回日历
 static void onLongPress(){
+  if(alarmRinging()){ alarmStop(); return; }
   if(currentPage == PAGE_MEMO){
     memoClearAll();
   } else if(currentPage == PAGE_POMO || currentPage == PAGE_WALL || currentPage == PAGE_WEATHER){
@@ -101,6 +106,7 @@ void setup(){
   memoBegin();   // 备忘录 NVS + 巴法云连接
   weatherBegin(); // 一周天气(Open-Meteo)
   pomoBegin();   // 番茄钟(默认停在专注25:00，待开始)
+  alarmBegin();  // 闹钟4组(NVS) + 蜂鸣器静音初始化
   button.attachClick(onClick);
   button.attachDoubleClick(onDoubleClick);
   button.attachMultiClick(onMultiClick);
@@ -112,6 +118,7 @@ void setup(){
 
 void loop(){
   button.tick();
+  alarmLoop();    // 闹钟判定(非阻塞，按分钟触发，60秒自动停)
   memoCloudLoop();
   netLoop();
   weatherLoop();

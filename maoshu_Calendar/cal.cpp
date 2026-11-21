@@ -253,19 +253,22 @@ void drawCalPage(){
   }
   drawMemoString(clk, PCX - memoTextWidth(wline) / 2, 102, wline, wcol);
   // ---- 今日宜 / 忌：两行两列对齐 ----
+  // 宜=满绿0x07E0(深色面板上最亮最清楚)；忌=满红通道0xF800(主题红0xE000在这块屏上偏粉)
+  static const uint16_t YI_GREEN = 0x07E0;
+  static const uint16_t JI_RED   = 0xF800;
   String yi[4], ji[4];
   calYiJi(y, m, d, li, yi, ji);
   const int COL1 = 228, COL2 = 272;   // 两列起点(中文16px宽)
-  drawMemoString(clk, 206, 124, "宜", GOLD);
-  drawMemoString(clk, COL1, 124, yi[0], GOLD);
-  drawMemoString(clk, COL2, 124, yi[1], GOLD);
-  drawMemoString(clk, COL1, 142, yi[2], GOLD);
-  drawMemoString(clk, COL2, 142, yi[3], GOLD);
-  drawMemoString(clk, 206, 160, "忌", GOLD_DIM);
-  drawMemoString(clk, COL1, 160, ji[0], GOLD_DIM);
-  drawMemoString(clk, COL2, 160, ji[1], GOLD_DIM);
-  drawMemoString(clk, COL1, 178, ji[2], GOLD_DIM);
-  drawMemoString(clk, COL2, 178, ji[3], GOLD_DIM);
+  drawMemoString(clk, 206, 124, "宜", YI_GREEN);
+  drawMemoString(clk, COL1, 124, yi[0], YI_GREEN);
+  drawMemoString(clk, COL2, 124, yi[1], YI_GREEN);
+  drawMemoString(clk, COL1, 142, yi[2], YI_GREEN);
+  drawMemoString(clk, COL2, 142, yi[3], YI_GREEN);
+  drawMemoString(clk, 206, 160, "忌", JI_RED);
+  drawMemoString(clk, COL1, 160, ji[0], JI_RED);
+  drawMemoString(clk, COL2, 160, ji[1], JI_RED);
+  drawMemoString(clk, COL1, 178, ji[2], JI_RED);
+  drawMemoString(clk, COL2, 178, ji[3], JI_RED);
 
   // WiFi状态点
   clk.fillCircle(310, 6, 4, netConnected() ? greenColor : wifiRedColor);

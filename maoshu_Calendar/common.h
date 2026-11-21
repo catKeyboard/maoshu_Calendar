@@ -4,10 +4,24 @@
 #include <Arduino.h>
 
 // ===== 固件版本 =====
-#define FW_VERSION "V01.4"
+#define FW_VERSION "V01.9"
 
 // ===== 硬件 =====
 #define BUTTON 8   // 按键引脚(与原 DuduClock 相同)
+
+// ===== 闹钟蜂鸣器(有源蜂鸣器：正极→BUZZER_PIN，负极→GND) =====
+// GPIO6 空闲、非 Strapping 脚(GPIO2/8/9 才是)，与 SPI(2/3/4/5/7)和按键(8)不冲突
+#define BUZZER_PIN 6
+#define BUZZER_ACTIVE_LOW 0   // 1=低电平触发(静音时输出高)；本机用高电平触发
+#define ALARM_RING_MS 60000   // 到点持续响 60 秒，按键可提前停止
+#define ALARM_BEEP_ON_MS 300  // 间歇响：响 300ms
+#define ALARM_BEEP_OFF_MS 250 // 间歇响：停 250ms
+#define ALARM_MAX 4           // 最多 4 组
+
+// 番茄钟阶段提示音(与闹钟共用蜂鸣器)：专注结束两声短促，休息结束一声长
+#define BEEP_FOCUS_ON_MS  200 // 短促音时长
+#define BEEP_FOCUS_GAP_MS 120 // 两声之间的间隙
+#define BEEP_REST_ON_MS   600 // 休息结束的长音
 
 // ===== NTP 校时 =====
 #define NTP1 "ntp.aliyun.com"

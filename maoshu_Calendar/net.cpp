@@ -5,9 +5,11 @@
 #include "common.h"
 #include "tftUtil.h"
 #include "memo.h"
+#include "cal.h"
 #include "settings.h"
 #include "weather.h"
 #include "pomodoro.h"
+#include "alarm.h"
 #include "net.h"
 
 // 网络：WiFi连接 + 精简AP配网 + NTP校时
@@ -44,6 +46,7 @@ button{width:100%;height:40px;font-size:1rem;background:#1E90FF;color:#fff;borde
 .ap{padding:9px 8px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;cursor:pointer}
 .ap:active{background:#e3f2fd}
 .row{display:flex;gap:8px}
+input[type=checkbox]{width:26px;height:26px;margin:0;padding:0;flex:0 0 26px}
 a{color:#1E90FF;font-size:.9rem}
 .tip{color:#888;font-size:.85rem;margin:2px 0 6px}
 </style></head><body>
@@ -84,6 +87,29 @@ a{color:#1E90FF;font-size:.9rem}
 </div>
 <button type='submit'>保存番茄钟设置</button>
 </form>
+
+<h3>闹钟</h3>
+<div class='tip'>最多 4 组；到点响 60 秒，按任意键停止；"仅一次"的响过自动失效</div>
+<form action='/alarm' method='post'>
+<div class='row' style='align-items:center'>
+<input type='checkbox' id='on0' name='on0'><input type='time' id='t0' name='t0' style='flex:1'>
+<select id='rep0' name='rep0' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
+</div>
+<div class='row' style='align-items:center'>
+<input type='checkbox' id='on1' name='on1'><input type='time' id='t1' name='t1' style='flex:1'>
+<select id='rep1' name='rep1' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
+</div>
+<div class='row' style='align-items:center'>
+<input type='checkbox' id='on2' name='on2'><input type='time' id='t2' name='t2' style='flex:1'>
+<select id='rep2' name='rep2' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
+</div>
+<div class='row' style='align-items:center'>
+<input type='checkbox' id='on3' name='on3'><input type='time' id='t3' name='t3' style='flex:1'>
+<select id='rep3' name='rep3' style='flex:0 0 92px'><option value='d'>每天</option><option value='o'>仅一次</option></select>
+</div>
+<button type='submit'>保存闹钟</button>
+</form>
+<div class='tip' id='acur'></div>
 
 <h3>巴法云推送</h3>
 <div class='tip'>UID=巴法云控制台32位私钥，主题名与小程序的发送主题一致</div>
@@ -163,6 +189,17 @@ fetch('/status').then(function(r){return r.json()}).then(function(s){
   document.getElementById('pShort').value=s.pShort;
   document.getElementById('pLong').value=s.pLong;
   document.getElementById('pCycle').value=s.pCycle;
+  if(s.alarm){
+    var st='';
+    for(var i=0;i<4;i++){
+      var a=s.alarm[i];
+      document.getElementById('on'+i).checked=a.on;
+      document.getElementById('t'+i).value=a.t;
+      document.getElementById('rep'+i).value=a.once?'o':'d';
+      if(a.on) st+=(st?'，':'')+a.t+(a.once?(a.fired?'(已响过，应用后重新生效)':'(仅一次)'):'(每天)');
+    }
+    document.getElementById('acur').textContent=st?'当前已启用：'+st:'当前没有启用的闹钟';
+  }
 }).catch(function(){});
 
 function loadScan(){
@@ -230,6 +267,7 @@ static void handleStatus(){
   s += ",\"uid\":\"" + jsonEsc(cfgBemfaUid()) + "\",\"topic\":\"" + jsonEsc(cfgBemfaTopic()) + "\"";
   s += ",\"pFocus\":" + String(cfgPomoFocus()) + ",\"pShort\":" + String(cfgPomoShort());
   s += ",\"pLong\":" + String(cfgPomoLong()) + ",\"pCycle\":" + String(cfgPomoCycle());
+  s += ",\"alarm\":" + alarmJson();
   s += ",\"id\":\"" + cfgDeviceId() + "\"";
   s += ",\"ver\":\"" FW_VERSION "\"}";
   server->send(200, "application/json", s);
@@ -290,6 +328,29 @@ static void handlePomo(){
   server->send(200, "text/html", "<meta charset='utf-8'>番茄钟设置已保存<br><a href='/'>返回</a>");
 }
 
+// 保存 4 组闹钟(启用/时间/每天或仅一次)
+static void handleAlarm(){
+  int enabled = 0;
+  for(int i = 0; i < ALARM_MAX; i++){
+    String sfx = String(i);
+    bool on = server->arg("on" + sfx).length() > 0;
+    String tv = server->arg("t" + sfx); tv.trim();
+    int hh = 0, mm = 0;
+    int colon = tv.indexOf(':');
+    if(colon > 0){
+      hh = tv.substring(0, colon).toInt();
+      mm = tv.substring(colon + 1).toInt();
+    }
+    if(hh < 0 || hh > 23 || mm < 0 || mm > 59) on = false;   // 时间不合法即视为停用
+    bool once = (server->arg("rep" + sfx) == "o");
+    alarmSet(i, on, hh, mm, once);
+    if(on) enabled++;
+  }
+  Serial.println(String("闹钟设置已保存，启用 ") + enabled + " 组");
+  server->send(200, "text/html", String("<meta charset='utf-8'>闹钟已保存(") + enabled +
+               " 组启用)<br><a href='/'>返回</a>");
+}
+
 // 保存新凭证并重启
 static void handleSave(){
   String ssid = server->arg("ssid");
@@ -314,6 +375,7 @@ static void registerRoutes(){
   server->on("/save", HTTP_POST, handleSave);
   server->on("/weather", HTTP_POST, handleWeather);
   server->on("/pomo", HTTP_POST, handlePomo);
+  server->on("/alarm", HTTP_POST, handleAlarm);
   server->on("/bemfa", HTTP_POST, handleBemfa);
 }
 
@@ -328,12 +390,12 @@ static void startPortal(){
   server->begin();
 }
 
-static void tryConnect(const String& ssid, const String& pass){
+static void tryConnect(const String& ssid, const String& pass, int seconds){
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), pass.c_str());
   Serial.println("连接WiFi: " + ssid);
   int n = 0;
-  while(WiFi.status() != WL_CONNECTED && n < 24){  // 最多等12秒
+  while(WiFi.status() != WL_CONNECTED && n < seconds * 2){
     delay(500);
     n++;
     Serial.print(".");
@@ -357,7 +419,12 @@ void netBegin(){
   String pass = netPrefs.getString("pass", "");
   netPrefs.end();
   if(ssid.length()){
-    tryConnect(ssid, pass);
+    tryConnect(ssid, pass, 20);          // 首次最多等20秒(DHCP慢时不至于误判)
+    if(WiFi.status() != WL_CONNECTED){
+      Serial.println("连接超时，重试一次...");
+      delay(500);
+      tryConnect(ssid, pass, 10);        // 再等10秒，仍失败才进配网
+    }
     if(WiFi.status() == WL_CONNECTED) return;
   }
   startPortal();  // 无凭证或连接失败 → 配网模式
@@ -365,7 +432,19 @@ void netBegin(){
 
 void netLoop(){
   if(server) server->handleClient();
-  if(portalMode) return;
+  if(portalMode){
+    // 配网期间后台STA若连上，自动退出配网，恢复正常运行(不必重启)
+    if(WiFi.status() == WL_CONNECTED){
+      portalMode = false;
+      WiFi.softAPdisconnect(true);
+      Serial.println("WiFi已连上，退出配网模式, IP: " + WiFi.localIP().toString());
+      configTime(8 * 3600, 0, NTP1, NTP2, NTP3);
+      setenv("TZ", TZ_INFO, 1);
+      tzset();
+      drawCalPage();
+    }
+    return;
+  }
   static unsigned long lastCheck = 0;
   if(millis() - lastCheck > 30000){
     lastCheck = millis();

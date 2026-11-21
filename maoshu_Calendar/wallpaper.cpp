@@ -6,7 +6,7 @@
 #include "net.h"
 
 // 壁纸数据来自 wallpaper_data.h（由 tools/wallpaper_convert.py 生成）
-// 日间/夜间各一张，320x240 RGB565，直接读Flash铺进sprite
+// 每套一张白天版，320x240 RGB565，直接读Flash铺进sprite
 
 static int clampSet(int i){
   if(i < 0) return 0;
@@ -28,11 +28,9 @@ bool wallpaperOn(){ return cfgWallOn(); }
 int  wallpaperSetIndex(){ return clampSet(cfgWallSet()); }
 int  wallpaperSetCount(){ return WALLPAPER_SET_COUNT; }
 
-// 当前时段对应的壁纸图
+// 当前套的壁纸图（只有白天版）
 static const uint16_t* currentImage(){
-  int i = wallpaperSetIndex();
-  return themeIsDay() ? (const uint16_t*)wallpaperDay[i]
-                      : (const uint16_t*)wallpaperNight[i];
+  return (const uint16_t*)wallpaperDay[wallpaperSetIndex()];
 }
 
 // 壁纸原图铺进sprite(0,0)
@@ -80,8 +78,7 @@ void drawWallPage(){
   drawMemoString(clk, 294 - memoTextWidth(idx), 8, idx, subColor);
   clk.fillCircle(310, 14, 5, netConnected() ? greenColor : wifiRedColor);
   // 底部：当前状态 + 操作提示
-  String mode = String(cfgWallOn() ? "已开启 · " : "未开启 · ")
-              + (themeIsDay() ? "日间壁纸" : "夜间壁纸");
+  String mode = cfgWallOn() ? "已开启" : "未开启";
   drawMemoString(clk, (320 - memoTextWidth(mode)) / 2, 202, mode, penColor);
   String tip = "单击 换壁纸  双击 启停  长按 返回";
   drawMemoString(clk, (320 - memoTextWidth(tip)) / 2, 220, tip, subColor);

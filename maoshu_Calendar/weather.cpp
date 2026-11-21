@@ -9,7 +9,15 @@ static int codes[7];            // 简化天气代码，0=今天
 static int highs[7], lows[7];   // 每天最高/最低温(℃)
 static bool valid = false;
 static bool hasTemp = false;
-static unsigned long lastFetch = 0;
+
+// 刷新节奏：成功后 30 分钟一次；失败则 60s→120s→…→30min 退避，接口抖动可自愈
+#define WEATHER_PERIOD    1800000UL   // 30 分钟
+#define WEATHER_RETRY_MIN 60000UL     // 失败后首次重试间隔
+static bool tried = false;            // 是否尝试过
+static bool fresh = false;            // 上次请求是否成功
+static unsigned long lastTry = 0;     // 上次请求时刻
+static unsigned long waitGap = WEATHER_RETRY_MIN;  // 下次等待间隔(本次生效)
+static unsigned long backoff = WEATHER_RETRY_MIN;  // 失败间隔阶梯(60s起翻倍)
 
 // WMO天气代码 → 简化分类
 static int classify(int c){
@@ -78,8 +86,8 @@ static bool parseSeries(const String& body, const char* key, int* dst){
   return n > 0;
 }
 
-static void fetchWeather(){
-  if(WiFi.status() != WL_CONNECTED) return;
+static bool fetchWeather(){
+  if(WiFi.status() != WL_CONNECTED) return false;
   String url = String("http://api.open-meteo.com/v1/forecast?latitude=") + cfgWeatherLat()
              + "&longitude=" + cfgWeatherLon()
              + "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=7";
@@ -98,25 +106,42 @@ static void fetchWeather(){
     hasTemp = hi && lo;
   }
   http.end();
+  return code == 200 && valid;
+}
+
+// 刷新一次并更新重试节奏：成功→30分钟周期；失败→本次等 backoff，之后 backoff 翻倍(30min封顶)
+static void refreshWeather(){
+  tried = true;
+  lastTry = millis();
+  if(fetchWeather()){
+    fresh = true;
+    waitGap = WEATHER_PERIOD;
+    backoff = WEATHER_RETRY_MIN;
+  } else {
+    fresh = false;
+    waitGap = backoff;                                  // 本次等待用当前阶梯(首次60s)
+    if(backoff < WEATHER_PERIOD) backoff = (backoff * 2 > WEATHER_PERIOD) ? WEATHER_PERIOD : backoff * 2;
+  }
 }
 
 void weatherBegin(){
-  fetchWeather();
-  lastFetch = millis();
+  // WiFi没连上就不取，也不计时：等 loop 里连上后再补首取
+  if(WiFi.status() == WL_CONNECTED) refreshWeather();
 }
 
 void weatherLoop(){
   if(WiFi.status() != WL_CONNECTED) return;
-  if(millis() - lastFetch < 1800000UL) return;  // 30分钟刷新一次
-  lastFetch = millis();
-  fetchWeather();
+  if(tried && (millis() - lastTry) < waitGap) return;
+  refreshWeather();
 }
 
 // 地区变更后调用：立即用新坐标重新获取
 void weatherRefreshNow(){
   valid = false;
   hasTemp = false;
-  lastFetch = millis() - 1800000UL;  // 让 weatherLoop 立即触发一次获取
+  tried = false;                      // 允许立即重取
+  backoff = WEATHER_RETRY_MIN;
+  waitGap = WEATHER_RETRY_MIN;
 }
 
 bool weatherValid(){ return valid; }
