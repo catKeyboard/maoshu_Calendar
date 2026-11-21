@@ -10,11 +10,9 @@
 
 ///////////////// 参数配置 /////////////////
 #define MEMO_MAX_COUNT 10      // 最多保存10条备忘录
-#define MEMO_MAX_BYTES 240     // 单条备忘录最大字节数(UTF-8)，约80个汉字
 #define MEMO_MQTT_SERVER "bemfa.com"  // 巴法云MQTT服务器
 #define MEMO_MQTT_PORT   9501        // 巴法云MQTT端口
 #define MEMO_LINES_PER_PAGE 8        // 每页显示的行数(横屏240高)
-#define MEMO_PAGE_INTERVAL  6000     // 自动翻页间隔(毫秒)
 /////////////////////////////////////////////
 
 // NVS存储：namespace "memo"，键 cnt、m0~m9、lastPush
@@ -174,7 +172,7 @@ void drawMemoTitleGlyph(int glyphIdx, int x, int y){
 //////////////////////////////////////////////////////
 
 ///////////////// 云端接收区域 /////////////////
-void memoAddText(String txt); // 前向声明
+void memoAddText(String txt, bool fromCloud); // 前向声明
 // 收到云端消息
 void mqttCallback(char* topic, byte* payload, unsigned int length){
   String txt = "";
@@ -203,7 +201,7 @@ static bool mqttReady = false;
 static void mqttSetup(){
   mqtt.setServer(MEMO_MQTT_SERVER, MEMO_MQTT_PORT);
   mqtt.setCallback(mqttCallback);
-  mqtt.setBufferSize(512);
+  mqtt.setBufferSize(1024);  // 单条上限600字节，缓冲需容纳 payload+topic
   mqtt.setKeepAlive(30);
   mqtt.setSocketTimeout(4);
   mqttReady = true;
@@ -236,14 +234,16 @@ void memoCloudLoop(){
     }
   }
 }
-// 新增一条备忘录(来自云端推送)
-void memoAddText(String txt){
+// 新增一条备忘录(巴法云推送与局域网提交共用此路径)
+void memoAddText(String txt, bool fromCloud){
   txt.replace("\r", "");
   txt.trim();
   if(txt.length() == 0) return;
   if(txt.length() > MEMO_MAX_BYTES) txt = utf8Truncate(txt, MEMO_MAX_BYTES);
-  if(txt.equals(lastPushText)) return; // 过滤巴法云保留消息，防止重启后重复添加
-  lastPushText = txt;
+  if(fromCloud){
+    if(txt.equals(lastPushText)) return; // 仅云端过滤巴法云保留消息，防止重启后重复添加
+    lastPushText = txt;
+  }
   if(memoCount >= MEMO_MAX_COUNT){ // 已满时丢弃最旧的一条
     for(int i = 0; i < MEMO_MAX_COUNT - 1; i++){
       memoList[i] = memoList[i + 1];
@@ -258,7 +258,7 @@ void memoAddText(String txt){
   memoPrefs.end();
   memoSaveToNVS();
   Serial.println("收到新备忘录: " + txt);
-  // 自动切换到备忘录页面展示新内容
+  // 推送后自动切到备忘录页展示新内容；翻页仍只由按键触发
   currentPage = PAGE_MEMO;
   memoPageIdx = 0;
   drawMemoPage();
@@ -336,9 +336,10 @@ void drawMemoContent(){
       tips.push_back("向下面主题推送消息即可");
       tips.push_back(cfgBemfaTopic());
     }else{
-      tips.push_back("未配置推送账号");
-      tips.push_back("请浏览器访问设备IP");
-      tips.push_back("在配置页填写巴法云");
+      tips.push_back("未配置巴法云(可选)");
+      tips.push_back("手机/电脑浏览器访问");
+      tips.push_back("设备IP 打开 /memo 页面");
+      tips.push_back("即可直接推送备忘录");
     }
     int y = 40;
     for(size_t i = 0; i < tips.size(); i++){
@@ -386,13 +387,5 @@ void memoNextPage(){
 // 是否已显示最后一页(用于单击进入番茄页)
 bool memoAtLastPage(){
   return memoPageIdx >= memoPages - 1;
-}
-// 备忘录页面轮询：多页时自动翻页
-void memoLoop(){
-  static unsigned long last = 0;
-  if(memoPages <= 1) return;
-  if(millis() - last < MEMO_PAGE_INTERVAL) return;
-  last = millis();
-  memoNextPage();
 }
 //////////////////////////////////////////////

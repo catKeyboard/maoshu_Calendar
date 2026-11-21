@@ -14,7 +14,7 @@
  *   - 番茄页 双击重置当前阶段 / 长按回桌面
  *   - 壁纸页 单击换下一套 / 双击启用停用 / 长按回桌面
  *   - 天气页 单击或长按回桌面
- *   - 收到新备忘录自动跳到备忘录页
+ *   - 收到新备忘录自动跳到备忘录页；翻页只由按键触发，无自动翻页
  */
 #include <WiFi.h>
 #include <time.h>
@@ -38,6 +38,7 @@ static int lastMin = -1;
 // 单击：桌面→备忘录；备忘录翻页(末页再单击进番茄)；壁纸换套；天气/番茄按页面处理
 static void onClick(){
   if(alarmRinging()){ alarmStop(); return; }   // 闹钟响时任意按键停止，不切页
+  if(calBootInfoActive()){ calBootInfoDismiss(); return; }   // 首次操作：关掉启动信息页
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_MEMO;
     drawMemoPage();
@@ -61,6 +62,7 @@ static void onClick(){
 // 双击：桌面→天气；壁纸启用/停用；番茄重置；备忘录等返回桌面
 static void onDoubleClick(){
   if(alarmRinging()){ alarmStop(); return; }
+  if(calBootInfoActive()){ calBootInfoDismiss(); return; }
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_WEATHER;
     drawWeatherPage();
@@ -77,6 +79,7 @@ static void onDoubleClick(){
 // 三击及以上：桌面→壁纸；其他页面等同双击
 static void onMultiClick(){
   if(alarmRinging()){ alarmStop(); return; }
+  if(calBootInfoActive()){ calBootInfoDismiss(); return; }
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_WALL;
     drawWallPage();
@@ -87,6 +90,7 @@ static void onMultiClick(){
 // 长按3秒：备忘录清空全部；番茄/壁纸/天气回日历
 static void onLongPress(){
   if(alarmRinging()){ alarmStop(); return; }
+  if(calBootInfoActive()){ calBootInfoDismiss(); return; }
   if(currentPage == PAGE_MEMO){
     memoClearAll();
   } else if(currentPage == PAGE_POMO || currentPage == PAGE_WALL || currentPage == PAGE_WEATHER){
@@ -113,12 +117,17 @@ void setup(){
   button.attachLongPressStart(onLongPress);
   button.setClickTicks(300);   // 连击判定窗口(兼顾单击响应与三击)
   button.setPressMs(3000);
-  drawCalPage();  // 默认日历页(未联网时显示等待同步提示)
+  if(inPortalMode()){
+    // 配网模式：屏幕上保留配网提示(热点名/192.168.4.1)
+  }else{
+    calBootInfoShow();   // 启动信息页(版本+IP)，停留10秒或首次按键进入桌面
+  }
 }
 
 void loop(){
   button.tick();
   alarmLoop();    // 闹钟判定(非阻塞，按分钟触发，60秒自动停)
+  calBootInfoLoop(); // 启动信息页到时自动切回桌面
   memoCloudLoop();
   netLoop();
   weatherLoop();
@@ -135,14 +144,13 @@ void loop(){
       else drawWallPage();
     }
   }
-  if(currentPage == PAGE_MEMO) memoLoop();
   // 天气页等数据期间每5秒重绘一次
   if(currentPage == PAGE_WEATHER && !weatherValid()){
     static unsigned long lastWDiag = 0;
     if(millis() - lastWDiag > 5000){ lastWDiag = millis(); drawWeatherPage(); }
   }
-  // 日历页每分钟整页刷新；未同步期间每5秒刷新诊断
-  if(currentPage == PAGE_CAL){
+  // 日历页每分钟整页刷新；未同步期间每5秒刷新诊断(启动信息页期间不刷新)
+  if(currentPage == PAGE_CAL && !calBootInfoActive()){
     time_t now = time(nullptr);
     if(now > 100000){
       struct tm* t = localtime(&now);

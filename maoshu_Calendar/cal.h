@@ -16,4 +16,10 @@ LunarInfo calSolar2Lunar(int y, int m, int d);    // 公历转农历
 void drawCalPage();                               // 绘制桌面页(星期/大时钟/农历/天气/宜忌)
 void drawWeatherPage();                           // 绘制本周天气页
 
+// 启动信息页(版本+IP)：停留10秒或首次按键进入桌面
+void calBootInfoShow();                           // 显示并开始计时
+void calBootInfoLoop();                           // 主循环调用：到时自动回桌面
+void calBootInfoDismiss();                        // 首次按键：立即进入桌面
+bool calBootInfoActive();                         // 是否仍停在启动信息页
+
 #endif

@@ -120,6 +120,10 @@ a{color:#1E90FF;font-size:.9rem}
 </form>
 <div class='tip' id='bcur'></div>
 
+<h3>局域网备忘录</h3>
+<div class='tip'>同一 WiFi 下的手机/电脑可直接填写内容推送到设备，无需巴法云</div>
+<p><a href='/memo'>打开备忘录推送页 &rarr;</a></p>
+
 <div class='tip' id='ver' style='text-align:center;margin-top:14px'></div>
 
 <script>
@@ -228,6 +232,50 @@ loadScan();
 </body></html>
 )rawliteral";
 
+// 局域网备忘录推送页(手机浏览器打开，与巴法云走同一入队/存储路径)
+// __MAXB__ 在发送时替换为 MEMO_MAX_BYTES，避免页面与后端上限不一致
+static const char MEMO_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>maoshu_Calendar 备忘录</title>
+<style>
+body{font-family:sans-serif;max-width:460px;margin:0 auto;padding:10px;font-size:1rem}
+h3{margin:16px 0 8px;font-size:1.05rem;border-left:4px solid #1E90FF;padding-left:8px}
+textarea{width:100%;height:130px;font-size:1rem;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:6px;resize:vertical}
+button{width:100%;height:40px;font-size:1rem;background:#1E90FF;color:#fff;border:0;border-radius:6px;margin-top:8px}
+a{color:#1E90FF;font-size:.9rem}
+.tip{color:#888;font-size:.85rem;margin:2px 0 6px}
+</style></head><body>
+
+<h3>局域网备忘录</h3>
+<div class='tip'>提交后保存并自动切到备忘录页(最多10条)；单条上限 __MAXB__ 字节(约 200 个汉字)</div>
+<form action='/memo' method='post' onsubmit='return chk()'>
+<textarea id='text' name='text' placeholder='输入内容，回车可换行'></textarea>
+<div class='tip' id='cnt'>已用 0/__MAXB__ 字节</div>
+<div class='tip' id='warn' style='color:#F80000;display:none'>已超出 __MAXB__ 字节上限，请删减后再提交</div>
+<button type='submit' id='send'>推送到设备</button>
+</form>
+<div class='tip'>同一局域网内任何能访问本设备的手机/电脑都可打开本页写入，公共网络请勿使用</div>
+<p><a href='/'>&larr; 返回配置页</a></p>
+<script>
+var ta=document.getElementById('text'),cnt=document.getElementById('cnt'),warn=document.getElementById('warn'),btn=document.getElementById('send');
+var LIM=__MAXB__;
+function bytes(){ try{ return new TextEncoder().encode(ta.value).length; }catch(e){ return ta.value.length; } }
+function upd(){
+  var n=bytes(), over=n>LIM;
+  cnt.textContent='已用 '+n+'/'+LIM+' 字节';
+  cnt.style.color=over?'#F80000':'#888';
+  warn.style.display=over?'block':'none';
+  btn.disabled=over;
+  btn.style.background=over?'#bbb':'#1E90FF';
+}
+function chk(){ upd(); return bytes()<=LIM; }
+ta.addEventListener('input',upd);
+upd();
+</script>
+
+</body></html>
+)rawliteral";
+
 // 扫描周围WiFi，返回JSON(按信号强度降序，同名去重留最强)
 static void handleScan(){
   int n = WiFi.scanNetworks();      // 同步扫描，约2秒
@@ -311,6 +359,27 @@ static void handleBemfa(){
     "<br><a href='/'>返回</a>");
 }
 
+// 局域网备忘录：POST 提交内容，与巴法云消息共用入队/存储路径
+static void handleMemoPost(){
+  String t = server->arg("text");   // 表单为 UTF-8 urlencoded，arg() 还原为原始 UTF-8 字节
+  t.trim();
+  if(!t.length()){
+    server->send(200, "text/html", "<meta charset='utf-8'>内容不能为空<br><a href='/memo'>返回</a>");
+    return;
+  }
+  if(t.length() > MEMO_MAX_BYTES){   // 后端兜底：不静默截断，直接拒绝
+    server->send(200, "text/html",
+      String("<meta charset='utf-8'>内容超长：当前 ") + t.length() + " 字节，上限 " +
+      MEMO_MAX_BYTES + " 字节，请删减后重试<br><a href='/memo'>返回</a>");
+    return;
+  }
+  memoAddText(t, false);            // false = 本机提交，不做巴法云保留消息去重
+  Serial.println("局域网推送备忘录, " + String(t.length()) + " 字节");
+  server->send(200, "text/html",
+    "<meta charset='utf-8'>已保存到设备，屏幕已切到备忘录页<br>"
+    "<a href='/memo'>继续推送</a> · <a href='/'>配置页</a>");
+}
+
 // 保存番茄钟时长(分钟)并重置当前阶段
 static void handlePomo(){
   int focus = server->arg("pFocus").toInt();
@@ -377,6 +446,12 @@ static void registerRoutes(){
   server->on("/pomo", HTTP_POST, handlePomo);
   server->on("/alarm", HTTP_POST, handleAlarm);
   server->on("/bemfa", HTTP_POST, handleBemfa);
+  server->on("/memo", HTTP_GET, [](){
+    String html = MEMO_HTML;
+    html.replace("__MAXB__", String(MEMO_MAX_BYTES));
+    server->send(200, "text/html", html);
+  });
+  server->on("/memo", HTTP_POST, handleMemoPost);
 }
 
 static void startPortal(){
@@ -441,7 +516,7 @@ void netLoop(){
       configTime(8 * 3600, 0, NTP1, NTP2, NTP3);
       setenv("TZ", TZ_INFO, 1);
       tzset();
-      drawCalPage();
+      calBootInfoShow();   // 显示启动信息页(版本+新IP)，停留10秒
     }
     return;
   }

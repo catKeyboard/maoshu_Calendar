@@ -137,6 +137,23 @@ static void drawBigChar(TFT_eSprite &s, int x, int y, char c, int sc, uint16_t c
     }
   }
 }
+// 4x8小号ASCII(8x16点阵行列各两两合并)，用于面板底部IP等次要信息
+static void drawSmallString(TFT_eSprite &s, int x, int y, const String& t, uint16_t color){
+  int cx = x;
+  for(int k = 0; k < (int)t.length(); k++){
+    unsigned char c = (unsigned char)t[k];
+    if(c >= 0x20 && c <= 0x7E){
+      for(int row = 0; row < 8; row++){
+        unsigned char b = pgm_read_byte(&memoFontAscii[c - 0x20][row * 2])
+                        | pgm_read_byte(&memoFontAscii[c - 0x20][row * 2 + 1]);
+        for(int col = 0; col < 4; col++){
+          if(b & (0xC0 >> (col * 2))) s.drawPixel(cx + col, y + row, color);
+        }
+      }
+    }
+    cx += 5;   // 4像素字形 + 1像素间距
+  }
+}
 // 日干支序号(0=甲子)：以1949-10-01为甲子日校准
 static int calDayGZ(int y, int m, int d){
   int a = (14 - m) / 12, yy = y + 4800 - a, mm = m + 12 * a - 3;
@@ -210,7 +227,16 @@ static void blendCard(TFT_eSprite &s, int x, int y, int w, int h, int r, uint16_
   }
 }
 
+// ==================== 启动信息页 ====================
+// 停留10秒：原来 WiFi 连上后信息页仅约1~2秒就被时钟页覆盖，看不清 IP；
+// 10秒足够记录/拍照，也不明显耽误日常使用
+#define BOOT_INFO_MS 10000UL
+static bool bootInfoOn = false;
+static unsigned long bootInfoAt = 0;
+static void drawBootInfoPage();   // 前置声明
+
 void drawCalPage(){
+  if(bootInfoOn){ drawBootInfoPage(); return; }
   time_t now = time(nullptr);
   clk.setColorDepth(16);
   clk.createSprite(320, 240);
@@ -270,10 +296,53 @@ void drawCalPage(){
   drawMemoString(clk, COL1, 178, ji[2], JI_RED);
   drawMemoString(clk, COL2, 178, ji[3], JI_RED);
 
+  // ---- 面板底部：当前 IP(4x8小字，距忌行9像素、距卡片底18像素，不挤压排版) ----
+  String ipLine = netConnected() ? (String("IP ") + WiFi.localIP().toString()) : String("IP --");
+  drawSmallString(clk, PCX - (int)ipLine.length() * 5 / 2, 202, ipLine, GOLD_DIM);
+
   // WiFi状态点
   clk.fillCircle(310, 6, 4, netConnected() ? greenColor : wifiRedColor);
   clk.pushSprite(0, 0);
   clk.deleteSprite();
+}
+
+// 启动信息页：版本 + 当前 IP + 访问方式(一次性整页绘制)
+static void drawBootInfoPage(){
+  clk.setColorDepth(16);
+  clk.createSprite(320, 240);
+  clk.fillSprite(backFillColor);
+  const int CX = 160;
+  String title = "maoshu_Calendar";
+  int tw = (int)title.length() * 16;
+  for(int i = 0; i < (int)title.length(); i++){
+    drawBigChar(clk, CX - tw / 2 + i * 16, 58, title[i], 2, orangeColor);
+  }
+  drawMemoString(clk, CX - memoTextWidth(FW_VERSION) / 2, 100, FW_VERSION, penColor);
+  String ip = netConnected() ? (String("IP ") + WiFi.localIP().toString()) : String("IP 未连接");
+  drawMemoString(clk, CX - memoTextWidth(ip) / 2, 136, ip, cyanColor);
+  drawMemoString(clk, CX - memoTextWidth("浏览器访问上面的地址") / 2, 168, "浏览器访问上面的地址", penColor);
+  drawMemoString(clk, CX - memoTextWidth("10秒后进入桌面") / 2, 200, "10秒后进入桌面", subColor);
+  clk.pushSprite(0, 0);
+  clk.deleteSprite();
+}
+void calBootInfoShow(){
+  bootInfoOn = true;
+  bootInfoAt = millis();
+  drawBootInfoPage();
+}
+void calBootInfoLoop(){
+  if(bootInfoOn && millis() - bootInfoAt >= BOOT_INFO_MS){
+    bootInfoOn = false;
+    drawCalPage();
+  }
+}
+void calBootInfoDismiss(){
+  if(!bootInfoOn) return;
+  bootInfoOn = false;
+  drawCalPage();
+}
+bool calBootInfoActive(){
+  return bootInfoOn;
 }
 
 // ==================== 天气页(7天预报) ====================
