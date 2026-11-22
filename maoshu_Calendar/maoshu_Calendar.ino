@@ -6,12 +6,11 @@
  *   - 天气页：本周7天预报(Open-Meteo)
  *   - 备忘录页：巴法云推送，NVS保存，断电不丢
  *   - 番茄钟页：专注/短休/长休自动循环，时长网页可配
- *   - 壁纸页：日/夜壁纸随主题切换，单击换套、双击启停
+ *   - 壁纸页：5套内置壁纸，单击换套、双击启停
  * 交互(单按键)：
- *   - 桌面页 单击 → 备忘录页；双击 → 壁纸页；长按 → 本周天气页
- *   - 备忘录页 单击翻页；番茄页 单击开始/暂停
- *   - 备忘录页 双击回桌面 / 长按3秒清空
- *   - 番茄页 双击重置当前阶段 / 长按回桌面
+ *   - 桌面页 单击 → 备忘录页；双击 → 天气页；三击 → 壁纸页；长按无动作
+ *   - 备忘录页 单击下一页 / 双击上一页 / 三击回第1页；长按3秒弹菜单(单击退出、双击清空)
+ *   - 番茄页 单击开始/暂停 / 双击重置当前阶段 / 长按回桌面
  *   - 壁纸页 单击换下一套 / 双击启用停用 / 长按回桌面
  *   - 天气页 单击或长按回桌面
  *   - 收到新备忘录自动跳到备忘录页；翻页只由按键触发，无自动翻页
@@ -35,21 +34,22 @@ enum CurrentPage currentPage = PAGE_CAL;
 static OneButton button(BUTTON, true);
 static int lastMin = -1;
 
-// 单击：桌面→备忘录；备忘录翻页(末页再单击进番茄)；壁纸换套；天气/番茄按页面处理
+// 单击：桌面→备忘录；备忘录下一页；菜单内单击退出；壁纸换套；天气/番茄按页面处理
 static void onClick(){
   if(alarmRinging()){ alarmStop(); return; }   // 闹钟响时任意按键停止，不切页
   if(calBootInfoActive()){ calBootInfoDismiss(); return; }   // 首次操作：关掉启动信息页
   if(memoClearConfirmActive()){ memoClearConfirmCancel(); return; }   // 清空确认中：单击取消
+  if(memoMenuActive()){   // 菜单内单击：退出回桌面
+    memoMenuClose();
+    currentPage = PAGE_CAL;
+    drawCalPage();
+    return;
+  }
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_MEMO;
     drawMemoPage();
   } else if(currentPage == PAGE_MEMO){
-    if(memoAtLastPage()){
-      currentPage = PAGE_POMO;
-      drawPomoPage();
-    } else {
-      memoNextPage();
-    }
+    memoNextPage();
   } else if(currentPage == PAGE_WALL){
     wallpaperNextSet();
     drawWallPage();
@@ -60,11 +60,17 @@ static void onClick(){
     pomoClick();
   }
 }
-// 双击：桌面→天气；壁纸启用/停用；番茄重置；备忘录等返回桌面
+// 双击：桌面→天气；备忘录上一页；菜单内双击进入清空确认；壁纸启用/停用；番茄重置
 static void onDoubleClick(){
   if(alarmRinging()){ alarmStop(); return; }
   if(calBootInfoActive()){ calBootInfoDismiss(); return; }
   if(memoClearConfirmActive()){ memoClearConfirmCancel(); return; }   // 清空确认中：取消
+  if(memoMenuActive()){   // 菜单内双击：进入清空确认
+    memoMenuClose();
+    drawMemoContent();
+    memoClearConfirmStart();
+    return;
+  }
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_WEATHER;
     drawWeatherPage();
@@ -73,30 +79,43 @@ static void onDoubleClick(){
     drawWallPage();
   } else if(currentPage == PAGE_POMO){
     pomoReset();
+  } else if(currentPage == PAGE_MEMO){
+    memoPrevPage();
   } else {
     currentPage = PAGE_CAL;
     drawCalPage();
   }
 }
-// 三击及以上：桌面→壁纸；其他页面等同双击
+// 三击及以上：桌面→壁纸；备忘录回第1页；菜单内取消菜单；其他页面等同双击
 static void onMultiClick(){
   if(alarmRinging()){ alarmStop(); return; }
   if(calBootInfoActive()){ calBootInfoDismiss(); return; }
   if(memoClearConfirmActive()){ memoClearConfirmCancel(); return; }   // 清空确认中：取消
+  if(memoMenuActive()){   // 菜单内三击：关闭菜单
+    memoMenuCancel();
+    return;
+  }
   if(currentPage == PAGE_CAL){
     currentPage = PAGE_WALL;
     drawWallPage();
+  } else if(currentPage == PAGE_MEMO){
+    memoFirstPage();
   } else {
     onDoubleClick();
   }
 }
-// 长按3秒：备忘录需二次长按确认清空；番茄/壁纸/天气回日历
+// 长按3秒：备忘录弹菜单(菜单内单击退出/双击清空)；清空确认中再长按执行清空
 static void onLongPress(){
   if(alarmRinging()){ alarmStop(); return; }
   if(calBootInfoActive()){ calBootInfoDismiss(); return; }
   if(currentPage == PAGE_MEMO){
-    if(memoClearConfirmActive()) memoClearAll();   // 第二次长按才真正清空
-    else memoClearConfirmStart();                  // 第一次长按只显示确认提示
+    if(memoClearConfirmActive()){
+      memoClearAll();          // 确认后第二次长按才真正清空
+    }else if(memoMenuActive()){
+      memoMenuCancel();        // 菜单内再长按：取消
+    }else{
+      memoMenuStart();         // 第一次长按只弹菜单，不改变数据
+    }
   } else if(currentPage == PAGE_POMO || currentPage == PAGE_WALL || currentPage == PAGE_WEATHER){
     currentPage = PAGE_CAL;
     drawCalPage();
@@ -133,6 +152,7 @@ void loop(){
   alarmLoop();    // 闹钟判定(非阻塞，按分钟触发，60秒自动停)
   calBootInfoLoop(); // 启动信息页到时自动切回桌面
   memoClearConfirmLoop(); // 清空确认提示8秒未执行则自动取消
+  memoMenuLoop();         // 长按菜单8秒无操作自动关闭
   memoCloudLoop();
   netLoop();
   weatherLoop();

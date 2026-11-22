@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // ===== 固件版本 =====
-#define FW_VERSION "V01.16"
+#define FW_VERSION "V01.17"
 
 // ===== 硬件 =====
 #define BUTTON 8   // 按键引脚(与原 DuduClock 相同)

@@ -26,6 +26,9 @@ int memoPages = 1;               // 总页数
 static bool clearConfirm = false;
 static unsigned long clearConfirmAt = 0;
 static void drawClearConfirm();
+static bool menuActive = false;       // 长按操作菜单是否打开
+static unsigned long menuAt = 0;
+static void drawMemoMenu();
 
 WiFiClient memoClient;
 PubSubClient mqtt(memoClient);
@@ -241,6 +244,7 @@ void memoCloudLoop(){
 // 新增一条备忘录(巴法云推送与局域网提交共用此路径)
 void memoAddText(String txt, bool fromCloud){
   clearConfirm = false;   // 新内容到达时取消待确认的清空操作
+  menuActive = false;     // 菜单打开时来新推送，自动关闭菜单
   txt.replace("\r", "");
   txt.trim();
   if(txt.length() == 0) return;
@@ -249,14 +253,15 @@ void memoAddText(String txt, bool fromCloud){
     if(txt.equals(lastPushText)) return; // 仅云端过滤巴法云保留消息，防止重启后重复添加
     lastPushText = txt;
   }
-  if(memoCount >= MEMO_MAX_COUNT){ // 已满时丢弃最旧的一条
-    for(int i = 0; i < MEMO_MAX_COUNT - 1; i++){
-      memoList[i] = memoList[i + 1];
-    }
-    memoCount = MEMO_MAX_COUNT - 1;
+  // 新内容置顶：memoList[0] 为最新，m9 为最旧；满10条时最旧一条被挤出
+  if(memoCount >= MEMO_MAX_COUNT){
+    for(int i = MEMO_MAX_COUNT - 1; i > 0; i--) memoList[i] = memoList[i - 1];
+    memoCount = MEMO_MAX_COUNT;
+  }else{
+    for(int i = memoCount; i > 0; i--) memoList[i] = memoList[i - 1];
+    memoCount++;
   }
-  memoList[memoCount] = txt;
-  memoCount++;
+  memoList[0] = txt;
   // 持久化
   memoPrefs.begin("memo", false);
   memoPrefs.putString("lastPush", lastPushText);
@@ -271,6 +276,7 @@ void memoAddText(String txt, bool fromCloud){
 // 清空全部备忘录(长按触发，云端保留消息也不会再回灌)
 void memoClearAll(){
   clearConfirm = false;
+  menuActive = false;
   memoCount = 0;
   for(int i = 0; i < MEMO_MAX_COUNT; i++) memoList[i] = "";
   // 从 NVS 中真正删除条目键与计数键，避免只是内存清空
@@ -394,16 +400,25 @@ void drawMemoPage(){
   tft.drawFastHLine(0, 44, 320, penColor);
   drawMemoContent();
   if(clearConfirm) drawClearConfirm();   // 整页重绘时保持确认提示
+  if(menuActive) drawMemoMenu();         // 主题定时重绘时保持长按菜单
 }
-// 翻到下一页
+// 翻到下一页(末页回到第1页)
 void memoNextPage(){
   if(memoPages <= 1) return;
   memoPageIdx = (memoPageIdx + 1) % memoPages;
   drawMemoContent();
 }
-// 是否已显示最后一页(用于单击进入番茄页)
-bool memoAtLastPage(){
-  return memoPageIdx >= memoPages - 1;
+// 翻到上一页(第1页回到末页)
+void memoPrevPage(){
+  if(memoPages <= 1) return;
+  memoPageIdx = (memoPageIdx + memoPages - 1) % memoPages;
+  drawMemoContent();
+}
+// 回到第1页(最新内容)
+void memoFirstPage(){
+  if(memoPages <= 1) return;
+  memoPageIdx = 0;
+  drawMemoContent();
 }
 //////////////////////////////////////////////
 
@@ -436,6 +451,44 @@ void memoClearConfirmCancel(){
 void memoClearConfirmLoop(){
   if(clearConfirm && millis() - clearConfirmAt >= MEMO_CLEAR_CONFIRM_MS){
     memoClearConfirmCancel();
+  }
+}
+//////////////////////////////////////////////
+
+///////////////// 长按操作菜单区域 /////////////////
+#define MEMO_MENU_MS 8000UL   // 菜单8秒无操作自动关闭
+// 屏上菜单(覆盖内容区)：单击退出、双击清空、三击或再长按取消
+static void drawMemoMenu(){
+  clk.setColorDepth(8);
+  clk.createSprite(304, 76);
+  clk.fillSprite(0x1907);
+  clk.drawRect(0, 0, 304, 76, 0xFD20);
+  drawMemoString(clk, (304 - memoTextWidth("备忘录操作")) / 2, 6, "备忘录操作", 0xFD20);
+  drawMemoString(clk, (304 - memoTextWidth("单击:退出  双击:清空")) / 2, 28, "单击:退出  双击:清空", 0xFFFF);
+  drawMemoString(clk, (304 - memoTextWidth("三击/长按:取消(8秒)")) / 2, 50, "三击/长按:取消(8秒)", 0xFFFF);
+  clk.pushSprite(8, 88);
+  clk.deleteSprite();
+}
+void memoMenuStart(){
+  clearConfirm = false;   // 菜单与清空确认不同时存在
+  menuActive = true;
+  menuAt = millis();
+  drawMemoMenu();
+}
+bool memoMenuActive(){
+  return menuActive;
+}
+void memoMenuClose(){
+  menuActive = false;
+}
+void memoMenuCancel(){
+  if(!menuActive) return;
+  menuActive = false;
+  drawMemoContent();
+}
+void memoMenuLoop(){
+  if(menuActive && millis() - menuAt >= MEMO_MENU_MS){
+    memoMenuCancel();
   }
 }
 //////////////////////////////////////////////
