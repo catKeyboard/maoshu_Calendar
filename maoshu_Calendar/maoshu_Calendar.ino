@@ -156,6 +156,8 @@ void loop(){
   memoCloudLoop();
   netLoop();
   weatherLoop();
+  // 桌面背景每10分钟顺序轮换；只在桌面页立即重绘，其他页返回桌面时自然使用新图
+  if(wallpaperAutoRotate() && currentPage == PAGE_CAL && !calBootInfoActive()) drawCalPage();
   pomoLoop();     // 番茄钟始终计时(切到其他页也继续)
   // 主题自动切换(7:00-19:00日间)：变化时重绘当前页
   static unsigned long lastTheme = 0;

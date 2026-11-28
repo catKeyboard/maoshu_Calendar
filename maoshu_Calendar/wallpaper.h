@@ -10,7 +10,8 @@ void wallpaperBegin();                 // 初始化(套编号越界时夹紧)
 bool wallpaperOn();                    // 壁纸是否启用作桌面背景
 int  wallpaperSetIndex();              // 当前套编号(0起)
 int  wallpaperSetCount();              // 固件内置套数
-void wallpaperNextSet();               // 切到下一套(存NVS)
+void wallpaperNextSet();               // 切到下一套(存NVS，并重新开始10分钟计时)
+bool wallpaperAutoRotate();            // 主循环调用：每10分钟顺序切下一套，返回是否切换
 bool wallpaperToggle();                // 启用/停用(存NVS)，返回新状态
 void wallpaperDrawBg(TFT_eSprite &s);  // 把当前壁纸原图铺到sprite(0,0)
 void drawWallPage();                   // 壁纸页整页绘制

@@ -7,6 +7,9 @@
 
 // 壁纸数据来自 wallpaper_data.h（由 tools/wallpaper_convert.py 生成）
 // 每套一张白天版，320x240 RGB565，直接读Flash铺进sprite
+#define WALLPAPER_ROTATE_MS 600000UL  // 桌面背景每10分钟顺序轮换，不写NVS
+static int autoSet = 0;               // 运行期当前套，手动切换时同步保存
+static unsigned long lastRotate = 0;
 
 static int clampSet(int i){
   if(i < 0) return 0;
@@ -22,10 +25,12 @@ void wallpaperBegin(){
   }
   int s = clampSet(cfgWallSet());
   if(s != cfgWallSet()) settingsSetWall(cfgWallOn(), s);
+  autoSet = s;
+  lastRotate = millis();
 }
 
 bool wallpaperOn(){ return cfgWallOn(); }
-int  wallpaperSetIndex(){ return clampSet(cfgWallSet()); }
+int  wallpaperSetIndex(){ return autoSet; }
 int  wallpaperSetCount(){ return WALLPAPER_SET_COUNT; }
 
 // 当前套的壁纸图（只有白天版）
@@ -48,13 +53,23 @@ void wallpaperDrawBg(TFT_eSprite &s){
 
 void wallpaperNextSet(){
   if(WALLPAPER_SET_COUNT < 1) return;
-  int n = (wallpaperSetIndex() + 1) % WALLPAPER_SET_COUNT;
-  settingsSetWall(cfgWallOn(), n);
+  autoSet = (autoSet + 1) % WALLPAPER_SET_COUNT;
+  settingsSetWall(cfgWallOn(), autoSet);  // 仅手动切换时写NVS
+  lastRotate = millis();                 // 手动换图后重新计时
+}
+
+bool wallpaperAutoRotate(){
+  if(WALLPAPER_SET_COUNT < 2) return false;
+  if(millis() - lastRotate < WALLPAPER_ROTATE_MS) return false;
+  lastRotate = millis();
+  autoSet = (autoSet + 1) % WALLPAPER_SET_COUNT;
+  return true;                           // 自动轮换只改RAM，避免频繁写NVS
 }
 
 bool wallpaperToggle(){
   bool on = !cfgWallOn();
-  settingsSetWall(on, cfgWallSet());
+  settingsSetWall(on, autoSet);
+  lastRotate = millis();
   return on;
 }
 
